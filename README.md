@@ -82,6 +82,12 @@ Developed for the **NASA Space Apps Challenge**, AgroMax bridges orbital satelli
 - Node.js 24 runtime validation with npm dependency caching.
 - Automated code linting (`oxlint`), production Vite build verification, and native Node test runner (`node --test`).
 
+### Phase 3 / Step 12: Commercial Engine Durability & Telemetry Tests
+- Boundary resilience and upstream failure isolation test suite (`server/provider-boundary.test.js`).
+- Strict credential and bearer token redaction in upstream provider error dumps.
+- Upstream rate-limit (HTTP 429) backoff retention, empty dataset protection against zero-injection, and malformed payload guardrails.
+- Rigorous ISO calendar date and leap day validation test suite (`server/dates.test.js`).
+
 ---
 
 ### Getting Started
