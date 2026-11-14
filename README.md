@@ -59,6 +59,13 @@ Developed for the **NASA Space Apps Challenge**, AgroMax bridges orbital satelli
 - Target overwrite prevention and row-by-row canonical hash comparison guaranteeing zero data corruption.
 - NASA Open APIs and Earthdata HLS integration verification service (`server/nasa.js`) with SHA-256 credential fingerprinting.
 
+### Phase 2 / Step 8: MET Norway Weather Forecasting Integration
+- Keyless MET Norway Locationforecast 2.0 complete API client (`server/weather.js`).
+- Dynamic geographic centroid calculation from parcel geometry bounding box (`weatherPoint`).
+- Rigorous data normalization with CC BY 4.0 attribution, strict SI units validation (`celsius`, `m/s`, `mm`), and 1/6/12-hour period aggregations.
+- Resilient local persistence cache (`weather_cache`) with conditional `If-Modified-Since` (HTTP 304), lease locking, and rate-limit backoff.
+- Comprehensive test suite preventing stale weather leakage and concurrent in-flight duplication (`server/weather.test.js`).
+
 ---
 
 ### Getting Started
