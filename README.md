@@ -94,6 +94,11 @@ Developed for the **NASA Space Apps Challenge**, AgroMax bridges orbital satelli
 - AgroMax brand identity lockup and Filiz avatar components (`src/components/Brand.jsx`).
 - Secure scrypt-backed password security with strict length constraints (12-256 characters) and rate-limited attempt budgets.
 
+### Phase 3 / Step 14: Rule-based Agricultural Assistant Filiz
+- Deterministic, hallucination-free agricultural assistant interface (`src/features/assistant/Filiz.jsx`).
+- Strict truth-in-data protocol: summarizes user field geometries, parcel areas, and pending operational tasks without inventing unverified recommendations.
+- Interactive question-and-answer flow with preset field queries and honest capability disclosures.
+
 ---
 
 ### Getting Started
