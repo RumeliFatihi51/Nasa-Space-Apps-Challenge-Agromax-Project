@@ -72,6 +72,11 @@ Developed for the **NASA Space Apps Challenge**, AgroMax bridges orbital satelli
 - Spraying wind risk metrics (instant wind speed, gust velocities, wind directions) and frost risk detection.
 - Atmospheric humidity, dew point temperature, and precipitation probabilities formatted with localized Turkish agronomical terminology (`weather-format.js`).
 
+### Phase 2 / Step 10: Deployment Verification & Smoke Test Harness
+- Comprehensive live production verification suite (`scripts/verify-deployment.mjs`) automatically testing authentication, parcel CRUD, Sentinel analysis queueing, and NDMI raster extraction.
+- Ephemeral test account lifecycle: creates unique verification accounts and completely purges them in `finally` blocks ensuring zero production pollution.
+- Local HTTP smoke test harness (`server/smoke-test.js`) verifying auth limits, place search geocoding (`server/places.js`), and soft-delete/restore workflows.
+
 ---
 
 ### Getting Started
