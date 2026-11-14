@@ -105,6 +105,11 @@ Developed for the **NASA Space Apps Challenge**, AgroMax bridges orbital satelli
 - Agronomic fertilizer mass conversion accounting for active ingredient purity and nutrient recovery fractions (`fertilizerMass`).
 - Crop protection volume calculator with area-weighted hectare scaling (`labelQuantity`).
 
+### Phase 4 / Step 16: Transition from Sci-Fi Theme to Fieldwork UI
+- Complete UX paradigm transition documented in `docs/FIELDWORK_UI.md`: discarding dark sci-fi/holographic theme in favor of clean agricultural fieldwork ergonomics.
+- Master application shell (`src/components/AppShell.jsx`) featuring responsive desktop sidebar, slim mode toggle, and mobile bottom navigation dock.
+- Accessible focus management, keyboard navigation (Ctrl+K shortcuts, Escape traps), and SVG icon mapping (`src/components/icons.js`).
+
 ---
 
 ### Getting Started
