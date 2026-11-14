@@ -21,6 +21,12 @@ Developed for the **NASA Space Apps Challenge**, AgroMax bridges orbital satelli
 - Tailwind CSS v4 and Three.js ecosystem integration.
 - Strict type-checking and environment configuration.
 
+### Phase 1 / Step 2: Local SQLite Database Layer & Schemas
+- SQLite persistence engine with WAL mode and concurrent transaction serialization (`server/database.js`).
+- Dual adapter compatibility supporting both local SQLite and Neon PostgreSQL.
+- Physical schema definitions: `users`, `sessions`, `records` (parcels/GeoJSON), `analyses`, `auth_limits`.
+- Concurrency isolation test suite verifying transaction rollback safety (`server/database.test.js`).
+
 ---
 
 ### Getting Started
