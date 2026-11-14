@@ -66,6 +66,12 @@ Developed for the **NASA Space Apps Challenge**, AgroMax bridges orbital satelli
 - Resilient local persistence cache (`weather_cache`) with conditional `If-Modified-Since` (HTTP 304), lease locking, and rate-limit backoff.
 - Comprehensive test suite preventing stale weather leakage and concurrent in-flight duplication (`server/weather.test.js`).
 
+### Phase 2 / Step 9: Agricultural Frost & Spray Weather Risk Windows
+- Interactive meteorological dashboard (`src/features/weather/WeatherDashboard.jsx`) providing parcel microclimate forecasts.
+- 24-hour SVG temperature trendline generator (`TemperatureChart` in `WeatherWidgets.jsx`) with dynamic spline segments and min/max bounds.
+- Spraying wind risk metrics (instant wind speed, gust velocities, wind directions) and frost risk detection.
+- Atmospheric humidity, dew point temperature, and precipitation probabilities formatted with localized Turkish agronomical terminology (`weather-format.js`).
+
 ---
 
 ### Getting Started
