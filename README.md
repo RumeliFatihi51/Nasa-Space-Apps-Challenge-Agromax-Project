@@ -41,6 +41,12 @@ Developed for the **NASA Space Apps Challenge**, AgroMax bridges orbital satelli
 - Automatic provider request budget splitting (`server/statistics-request.js`) and usage telemetry metering (`server/provider-meter.js`).
 - Rigorous unit test suite verifying zero-data filtering, calendar period splits, and PNG mask validation (`server/satellite.test.js`).
 
+### Phase 1 / Step 5: Vegetation Index Calculators (NDVI, NDRE, EVI)
+- Asynchronous analysis job manager and state machine (`server/analysis-jobs.js`) managing `queued`, `running`, `completed`, and `failed` lifecycles.
+- Persistent analysis cache and immutable spectral history storage linked to geometry hashes.
+- Concurrency control, user ownership enforcement, and notification dispatches (`analysis_jobs`, `notifications`, `audit_events`).
+- Resilient recovery of interrupted jobs and cross-instance lease handling (`server/analysis-jobs.test.js`).
+
 ---
 
 ### Getting Started
