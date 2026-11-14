@@ -27,6 +27,13 @@ Developed for the **NASA Space Apps Challenge**, AgroMax bridges orbital satelli
 - Physical schema definitions: `users`, `sessions`, `records` (parcels/GeoJSON), `analyses`, `auth_limits`.
 - Concurrency isolation test suite verifying transaction rollback safety (`server/database.test.js`).
 
+### Phase 1 / Step 3: Map Engine & Parcel Polygon Editor
+- Precise parcel boundary validation and GeoJSON Polygon/MultiPolygon schema validation (`shared/geometry.js`).
+- Topological validation rejecting self-intersecting lines (kinks), unclosed rings, and non-finite coords.
+- Geodesic WGS84 area calculation in decares (`area / 1000`) and bounding box span evaluation.
+- High-resolution Esri World Imagery and OpenStreetMap basemap layers (`src/features/fields/basemaps.js`).
+- Field entity preparation and geometry normalization test coverage (`server/geometry.test.js`).
+
 ---
 
 ### Getting Started
