@@ -53,6 +53,12 @@ Developed for the **NASA Space Apps Challenge**, AgroMax bridges orbital satelli
 - Single-function destination routing via `__agromax_route` rewriting for all `/api/*` endpoints.
 - Production `vercel.json` configuration targeted for Frankfurt (`fra1`) with 300-second execution window and SPA fallback.
 
+### Phase 2 / Step 7: Neon PostgreSQL Migration Scripts & Store
+- Transaction-safe, lossless database migration script (`scripts/migrate-to-postgres.mjs`) transferring local SQLite records to cloud Neon PostgreSQL.
+- Pre-flight validation ensuring no active background analysis jobs are interrupted.
+- Target overwrite prevention and row-by-row canonical hash comparison guaranteeing zero data corruption.
+- NASA Open APIs and Earthdata HLS integration verification service (`server/nasa.js`) with SHA-256 credential fingerprinting.
+
 ---
 
 ### Getting Started
