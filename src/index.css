@@ -1,0 +1,94 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    /* AgroMax High-End Brand Color System */
+    --color-warm-ivory: #F5F3EB;
+    --color-porcelain: #FCFBF7;
+    --color-muted-sage: #CBD7C2;
+    --color-soft-mineral: #D5D6CF;
+    --color-botanical-green: #3C6247;
+    --color-forest-accent: #2C4B35;
+    --color-deep-ink: #24332A;
+    --color-ink-muted: #57685D;
+    --color-sandstone: #E8E4D8;
+    
+    --color-border-hairline: rgba(36, 51, 42, 0.10);
+    --color-border-medium: rgba(36, 51, 42, 0.20);
+    --color-card-surface: #FCFBF7;
+  }
+
+  * {
+    border-color: var(--color-border-hairline);
+  }
+
+  body {
+    background-color: var(--color-warm-ivory);
+    color: var(--color-deep-ink);
+    font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+    letter-spacing: -0.015em;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  h1, h2, h3, h4, .font-display {
+    font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+    letter-spacing: -0.035em;
+    font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+  }
+
+  .font-editorial {
+    font-family: 'Newsreader', Georgia, serif;
+    letter-spacing: -0.02em;
+  }
+
+  .font-mono {
+    font-family: 'JetBrains Mono', monospace;
+    letter-spacing: -0.01em;
+  }
+}
+
+/* Subtle Editorial Hairline Grid */
+.editorial-grid {
+  background-image: 
+    linear-gradient(to right, rgba(36, 51, 42, 0.04) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(36, 51, 42, 0.04) 1px, transparent 1px);
+  background-size: 40px 40px;
+}
+
+/* Fine Coordinate Crosshairs */
+.crosshair-pattern {
+  background-image: radial-gradient(circle, rgba(36, 51, 42, 0.15) 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+
+/* Atmospheric Horizon Glow */
+.atmospheric-glow {
+  background: radial-gradient(circle at 50% 0%, rgba(203, 215, 194, 0.45) 0%, rgba(245, 243, 235, 0) 70%);
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+::-webkit-scrollbar-track {
+  background: #F5F3EB;
+}
+::-webkit-scrollbar-thumb {
+  background: #CBD7C2;
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #3C6247;
+}
+
+/* Reduced motion preference */
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
