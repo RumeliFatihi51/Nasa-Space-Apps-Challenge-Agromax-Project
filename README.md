@@ -47,6 +47,12 @@ Developed for the **NASA Space Apps Challenge**, AgroMax bridges orbital satelli
 - Concurrency control, user ownership enforcement, and notification dispatches (`analysis_jobs`, `notifications`, `audit_events`).
 - Resilient recovery of interrupted jobs and cross-instance lease handling (`server/analysis-jobs.test.js`).
 
+### Phase 2 / Step 6: Vercel Serverless Function Router (api/index.js)
+- Edge-compatible serverless request router (`api/index.js` & `server/vercel-entry.js`) utilizing `@vercel/functions` and `waitUntil`.
+- Central HTTP multiplexer (`server/application.js`) handling CORS security, scrypt password hashing, rate limiting, and session cookies.
+- Single-function destination routing via `__agromax_route` rewriting for all `/api/*` endpoints.
+- Production `vercel.json` configuration targeted for Frankfurt (`fra1`) with 300-second execution window and SPA fallback.
+
 ---
 
 ### Getting Started
