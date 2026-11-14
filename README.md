@@ -88,6 +88,12 @@ Developed for the **NASA Space Apps Challenge**, AgroMax bridges orbital satelli
 - Upstream rate-limit (HTTP 429) backoff retention, empty dataset protection against zero-injection, and malformed payload guardrails.
 - Rigorous ISO calendar date and leap day validation test suite (`server/dates.test.js`).
 
+### Phase 3 / Step 13: Authentication, Session & Recovery Service
+- Secure dual-mode authentication interface (`src/components/Auth.jsx`) supporting login, registration, and session cookie validation.
+- Password recovery and reset request handling (`src/components/AccountRecovery.jsx`) with token verification.
+- AgroMax brand identity lockup and Filiz avatar components (`src/components/Brand.jsx`).
+- Secure scrypt-backed password security with strict length constraints (12-256 characters) and rate-limited attempt budgets.
+
 ---
 
 ### Getting Started
