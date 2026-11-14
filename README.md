@@ -99,6 +99,12 @@ Developed for the **NASA Space Apps Challenge**, AgroMax bridges orbital satelli
 - Strict truth-in-data protocol: summarizes user field geometries, parcel areas, and pending operational tasks without inventing unverified recommendations.
 - Interactive question-and-answer flow with preset field queries and honest capability disclosures.
 
+### Phase 3 / Step 15: Farming Cost, Fertilizer & Dosage Calculation Engine
+- Standard FAO-56 Penman-Monteith Reference Evapotranspiration engine (`commercial/calculations/engine.ts`).
+- Root-zone soil water balance, readily available water, and irrigation duration calculation (`irrigationBalance`).
+- Agronomic fertilizer mass conversion accounting for active ingredient purity and nutrient recovery fractions (`fertilizerMass`).
+- Crop protection volume calculator with area-weighted hectare scaling (`labelQuantity`).
+
 ---
 
 ### Getting Started
