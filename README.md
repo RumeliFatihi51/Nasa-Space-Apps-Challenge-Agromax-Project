@@ -77,6 +77,11 @@ Developed for the **NASA Space Apps Challenge**, AgroMax bridges orbital satelli
 - Ephemeral test account lifecycle: creates unique verification accounts and completely purges them in `finally` blocks ensuring zero production pollution.
 - Local HTTP smoke test harness (`server/smoke-test.js`) verifying auth limits, place search geocoding (`server/places.js`), and soft-delete/restore workflows.
 
+### Phase 3 / Step 11: GitHub Actions CI Pipeline Workflow
+- Continuous integration automation (`.github/workflows/ci.yml`) triggered on pushes and pull requests to `main`.
+- Node.js 24 runtime validation with npm dependency caching.
+- Automated code linting (`oxlint`), production Vite build verification, and native Node test runner (`node --test`).
+
 ---
 
 ### Getting Started
