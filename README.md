@@ -34,6 +34,13 @@ Developed for the **NASA Space Apps Challenge**, AgroMax bridges orbital satelli
 - High-resolution Esri World Imagery and OpenStreetMap basemap layers (`src/features/fields/basemaps.js`).
 - Field entity preparation and geometry normalization test coverage (`server/geometry.test.js`).
 
+### Phase 1 / Step 4: Copernicus Sentinel-2 L2A Satellite API Client
+- Copernicus Data Space Ecosystem (CDSE) & Sentinel Hub OAuth2 client credentials authentication (`server/satellite.js`).
+- Comprehensive spectral metric definitions and 23 agricultural vegetation index declarations (`shared/metrics.js`).
+- Dynamic Evalscript V3 generation requesting S2 L2A optical bands (B02, B03, B04, B08, B8A, B11, B12, SCL, CLD).
+- Automatic provider request budget splitting (`server/statistics-request.js`) and usage telemetry metering (`server/provider-meter.js`).
+- Rigorous unit test suite verifying zero-data filtering, calendar period splits, and PNG mask validation (`server/satellite.test.js`).
+
 ---
 
 ### Getting Started
