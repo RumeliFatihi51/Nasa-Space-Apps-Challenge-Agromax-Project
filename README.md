@@ -114,6 +114,10 @@ Developed for the **NASA Space Apps Challenge**, AgroMax bridges orbital satelli
 - Agronomic field task board with calendar and list views (`src/features/tasks/TaskBoard.jsx`).
 - Interactive modal for scheduling, editing, and dispatching parcel workorders, fertilization, and spraying interventions (`src/features/tasks/TaskModal.jsx`).
 - Dynamic status filtering across pending, in-progress, and completed field operations.
+### Phase 4 / Step 18: Warm Editorial Landscape Visual Identity & Assets
+- Master design system documentation for AgroMax's warm editorial agricultural palette (`design-system/agromax/MASTER.md`).
+- Preference and theme context provider supporting ergonomic field themes (`src/components/PreferenceProvider.jsx`).
+- Responsive brand component with modular logo and topography typography (`src/components/Brand.jsx`).
 ---
 
 ### Getting Started
