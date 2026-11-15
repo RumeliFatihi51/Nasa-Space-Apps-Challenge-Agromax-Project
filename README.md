@@ -122,6 +122,10 @@ Developed for the **NASA Space Apps Challenge**, AgroMax bridges orbital satelli
 - Modal command palette triggered by keyboard shortcuts (Ctrl+K / Cmd+K) for rapid field parcel lookup (`src/components/QuickSearch.jsx`).
 - Accessible focus trapping and keyboard navigation hook (`src/components/useDialogFocus.js`).
 - Dynamic workspace page context management hook (`src/components/useWorkspacePage.ts`).
+### Phase 4 / Step 20: Error Boundary & Network Status Indicators
+- React component error boundary with graceful fallback UI for production stability (`src/components/ErrorBoundary.jsx`).
+- Real-time online/offline and sync status indicators with pulse animations (`src/components/ui/StatusIndicator.jsx`, `src/components/ui/status.css`).
+- Accessible confirmation dialog and fieldwork workspace layout primitives (`src/components/ui/ConfirmDialog.tsx`, `src/components/ui/WorkspaceUI.jsx`).
 ---
 
 ### Getting Started
