@@ -1,0 +1,106 @@
+/* Living Earth: one shell, quiet work surfaces, expressive navigation. */
+html.agromax-ui .living-shell {--sidebar-width:260px;--living-ink:#203c32;--living-paper:#f5f3eb;background:#f5f3eb;color:var(--living-ink)}
+html.agromax-ui .living-shell .studio-sidebar {background:linear-gradient(180deg,#102d28f5 0%,#18382ee6 70%,#102d28f5),url('/visuals/films/tarim2/terraces.webp') center/cover;border-right:1px solid #fbf7df1c;padding:25px 16px 12px}
+html.agromax-ui .living-shell .studio-sidebar::before,html.agromax-ui .living-shell .studio-sidebar::after {display:none}
+html.agromax-ui .living-shell .studio-brand-row {margin-bottom:24px}
+.navigation-intro {padding:0 14px 12px;display:grid;gap:5px}
+.navigation-intro>span {font-size:9px;letter-spacing:.2em;color:#dbdfb5}
+.navigation-intro>small {font-size:12px;color:#a5b9ac}
+html.agromax-ui .living-shell .studio-primary-nav {gap:3px;margin-top:0}
+html.agromax-ui .living-shell .studio-primary-nav .studio-nav-link {position:relative;isolation:isolate;overflow:hidden;border:1px solid transparent;border-radius:12px;min-height:62px;padding:10px 12px;margin:0;color:#dce6dd;transition:background .22s,border-color .22s,transform .22s;box-shadow:none}
+html.agromax-ui .living-shell .studio-nav-link::before {content:"";position:absolute;inset:0;background:radial-gradient(130px circle at var(--pointer-x,50%) var(--pointer-y,50%),#d9e9b923,transparent 90%);opacity:0;z-index:-1;transition:opacity .2s;pointer-events:none}
+html.agromax-ui .living-shell .studio-nav-link:hover::before {opacity:1}
+html.agromax-ui .living-shell .studio-primary-nav .studio-nav-link:hover {background:#f0eed509;border-color:#d3ddc829;transform:translateX(2px)}
+html.agromax-ui .living-shell .studio-primary-nav .studio-nav-link.is-active {background:#e5ebc8;color:#18382e;border-color:#e5ebc8;box-shadow:0 6px 24px #051c2520}
+html.agromax-ui .living-shell .studio-primary-nav .studio-nav-link.is-active .canopy-nav-icon {color:#294c3a}
+.nav-copy {display:grid;text-align:left;gap:4px;min-width:0}
+.nav-copy>span {font-weight:650;font-size:13px}
+.nav-copy>small {font-size:10px;color:#a9beb0;font-weight:450;letter-spacing:.01em}
+.is-active .nav-copy>small {color:#526849}
+html.agromax-ui .living-shell .studio-workspace {border:0;background:#ffffff09;margin:0 0 8px;border-radius:12px}
+html.agromax-ui .living-shell .studio-utility-nav {padding-top:12px;margin-top:20px}
+html.agromax-ui .living-shell .studio-user {background:transparent;border-top:1px solid #d7e2ca25;margin-top:10px}
+html.agromax-ui .living-shell .studio-topbar {background:#f7f6efed;border-bottom:1px solid #d9ded1;backdrop-filter:blur(14px);min-height:70px}
+html.agromax-ui .living-shell .studio-global-search {background:#e9ede3;border:0;border-radius:30px}
+html.agromax-ui .living-shell .studio-top-avatar {border-radius:50%;background:#dce4cd;border:0;color:#284a36}
+html.agromax-ui .living-shell .studio-content {background:transparent;padding-top:26px}
+html.agromax-ui .living-shell .workspace-section-nav {gap:6px;border:0;padding:8px;background:#e9ece2;border-radius:16px;margin-bottom:24px}
+html.agromax-ui .living-shell .workspace-section-nav button {border-radius:10px;min-height:44px;color:#496150;font-weight:600;transition:background .2s,box-shadow .2s}
+html.agromax-ui .living-shell .workspace-section-nav button[aria-current="page"] {color:#1a3c2f;background:#fffdf5;box-shadow:0 3px 10px #253b2210}
+html.agromax-ui .living-shell .workspace-section-nav button:hover:not([aria-current]) {background:#dce3d4}
+html.agromax-ui .living-shell .dashboard-hero {border-radius:24px;overflow:hidden;min-height:345px;padding:46px 40px 62px;align-items:center}
+html.agromax-ui .living-shell .dashboard-hero-media::after {background:linear-gradient(90deg,#092c29de,#16372b45 70%),linear-gradient(0deg,#0a2d2a85,transparent 65%)}
+html.agromax-ui .living-shell .dashboard-greeting h1 {font-size:clamp(40px,4vw,70px);line-height:1.02;font-weight:600;letter-spacing:-.055em;color:#f7f6e7}
+html.agromax-ui .living-shell .dashboard-greeting>p:first-child {font-size:12px;letter-spacing:.08em;margin-bottom:18px;color:#dfe9c4}
+html.agromax-ui .living-shell .dashboard-greeting>p:last-child {font-size:14px;line-height:1.7;max-width:390px}
+html.agromax-ui .living-shell .dashboard-grid {margin:22px 0 0;gap:22px}
+html.agromax-ui .living-shell .dashboard-stats {gap:0;border-block:1px solid #cdd6c7;background:transparent}
+html.agromax-ui .living-shell .dashboard-kpi {border:0;border-right:1px solid #cdd6c7;background:transparent;border-radius:0;box-shadow:none}
+html.agromax-ui .living-shell .dashboard-kpi:last-child {border-right:0}
+html.agromax-ui .living-shell .dashboard-module {border-radius:16px;background:#e9edde;border:0;padding:24px;box-shadow:none;transition:transform .22s,background .22s}
+html.agromax-ui .living-shell .dashboard-module:hover {transform:translateY(-3px);background:#dde7cf}
+html.agromax-ui .living-shell .workspace-scene {--cinema-ink:#203c32}
+html.agromax-ui .living-shell .workspace-scene-art {border-radius:20px}
+html.agromax-ui .living-shell :is(.decision-columns,.decision-mix) {background:#f5f6ed;border:1px solid #d7dece;border-radius:18px;padding:22px}
+html.agromax-ui .living-shell .decision-column-bar {border-radius:9px 9px 2px 2px;width:40%;box-shadow:4px 0 12px #274d3020}
+html.agromax-ui .living-shell .decision-ring-shape {width:160px;box-shadow:0 8px 24px #243e2014}
+html.agromax-ui .living-shell table {border-collapse:separate;border-spacing:0;font-variant-numeric:tabular-nums}
+html.agromax-ui .living-shell th {letter-spacing:.025em;font-size:.78rem}
+html.agromax-ui .living-shell tbody tr {transition:background .18s}
+html.agromax-ui .living-shell tbody tr:hover {background:#e4ecda}
+html.agromax-ui .living-shell :is(button,a,input,select,textarea):focus-visible {outline:2px solid #a87c36;outline-offset:3px}
+.field-pulse {display:grid;grid-template-columns:1fr 1fr;gap:22px;padding:25px 0;border-block:1px solid #d1dac9;color:#264536;margin-block:20px}
+.pulse-heading {grid-column:1/-1;display:grid;grid-template-columns:1fr 1fr;gap:8px 24px}
+.pulse-heading>span {grid-column:1/-1;font-size:10px;letter-spacing:.17em;color:#657751}
+.agromax-ui .pulse-heading h2 {font-size:clamp(23px,2vw,32px);font-weight:550;line-height:1.15;letter-spacing:-.04em;margin:0}
+.pulse-heading p {align-self:end;line-height:1.6;font-size:12px;color:#677561;margin:0}
+.pulse-progress {display:flex;align-items:center;gap:14px;border:0;background:#e9efdf;border-radius:18px;padding:17px;color:#244734;text-align:left;cursor:pointer;min-width:0}
+.pulse-progress>svg:first-child {width:110px;flex:none;overflow:visible}
+.pulse-progress circle {fill:none;stroke:#ced9c1;stroke-width:8}
+.pulse-progress .pulse-arc {stroke:#53744c;stroke-linecap:round;transform:rotate(-90deg);transform-origin:60px 60px}
+.pulse-progress text {text-anchor:middle;fill:#234832;font-size:24px;font-weight:650}
+.pulse-progress .pulse-ring-label {font-size:8px;font-weight:450}
+.pulse-progress>span {display:grid;gap:8px;font-size:12px}
+.pulse-progress small {font-size:10px;line-height:1.5;color:#5e7254}
+.pulse-progress>svg:last-child {margin-left:auto;flex:none}
+.pulse-crops {min-width:0;padding:4px 0}
+.pulse-crops>div {display:flex;justify-content:space-between;align-items:center;font-size:13px}
+.pulse-crops button {border:0;background:transparent;color:inherit;padding:8px;min-height:36px;cursor:pointer}
+.pulse-crops ul {list-style:none;padding:0;margin:12px 0 0;display:grid;gap:13px}
+.pulse-crops li {display:grid;grid-template-columns:1fr auto;gap:5px;font-size:11px}
+.pulse-crops li>span {overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pulse-crops b {font-weight:500;color:#6b795c}
+.pulse-crops i {grid-column:1/-1;height:6px;border-radius:4px;background:#e1e5d5;overflow:hidden}
+.pulse-crops i>span {display:block;height:100%;background:linear-gradient(90deg,#3e6653,#afbe80);border-radius:4px}
+.pulse-crops>p,.pulse-crops>small {font-size:12px;color:#677561}
+.cinema-route-cut {background:linear-gradient(110deg,#102d28f5,#274735ed),url('/visuals/films/tarim2/atlas.webp') center/cover}
+.route-cut-signature {display:grid;justify-items:center;gap:14px}
+.route-cut-signature>span {font-size:24px;letter-spacing:-.04em;color:#f4f2df}
+.route-cut-signature>small {font-size:11px;letter-spacing:.08em;color:#b8c8a5}
+html.agromax-ui .living-loader {background:#122f27;overflow:hidden;isolation:isolate}
+.living-loader .loader-landscape {position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:.24;z-index:-1}
+html.agromax-ui .living-loader>div {color:#f0f1da;z-index:1}
+.living-loader p {font-size:clamp(22px,4vw,42px);letter-spacing:-.045em;margin:18px 0 8px;font-weight:500}
+.living-loader .loader-breath {display:block;width:90px;height:2px;background:#d3e3ac;margin:24px auto 0;transform-origin:left;animation:earth-breath 1.8s ease-in-out infinite}
+@keyframes earth-breath {50%{transform:scaleX(.3);opacity:.4}}
+html.agromax-ui .living-shell.sidebar-slim .navigation-intro {display:none}
+@media(min-width:641px){html.agromax-ui .living-shell.sidebar-slim .nav-copy {display:none}}
+@media(max-width:1100px){.pulse-progress {gap:8px;padding:12px}.pulse-progress>svg:first-child{width:85px}.field-pulse{gap:15px}html.agromax-ui .living-shell .dashboard-hero{padding:35px 25px;min-height:310px}.dashboard-weather{flex-wrap:wrap}}
+@media(max-width:640px){html.agromax-ui .living-shell .studio-content{padding-top:14px}html.agromax-ui .living-shell .dashboard-hero{border-radius:18px;min-height:360px;padding:30px 22px;align-items:start}html.agromax-ui .living-shell .dashboard-greeting h1{font-size:43px}html.agromax-ui .living-shell .dashboard-grid{margin-top:16px}.field-pulse{grid-template-columns:1fr}.pulse-heading{grid-template-columns:1fr}.pulse-heading>span{grid-column:auto}.pulse-heading p{margin-top:4px}.pulse-progress>svg:first-child{width:105px}html.agromax-ui .living-shell .canopy-mobile-dock{background:#12372f;color:#f4f3e5;border-radius:20px 20px 0 0;border-top:1px solid #5e7d5a}html.agromax-ui .living-shell .canopy-mobile-dock button{color:#c5d6c8}html.agromax-ui .living-shell .canopy-mobile-dock button[aria-current="page"]{background:#dce8ba;color:#214432;border-radius:14px}.navigation-intro{display:none}html.agromax-ui .living-shell .studio-primary-nav .studio-nav-link{min-height:58px}}
+@media(prefers-reduced-motion:reduce){.living-loader .loader-breath{animation:none}html.agromax-ui .living-shell .studio-nav-link::before{display:none}html.agromax-ui .living-shell .studio-nav-link,html.agromax-ui .living-shell .dashboard-module{transition:none!important;transform:none!important}}
+html.agromax-ui .living-shell.studio-page-overview .studio-topbar {position:relative;inset:auto;background:#f5f3eb;border-bottom:1px solid #d9ded1}
+html.agromax-ui .living-shell.studio-page-overview .studio-content {padding:24px}
+html.agromax-ui .living-shell.studio-page-overview .studio-breadcrumb>:not(.studio-mobile-toggle) {display:initial}
+html.agromax-ui .living-shell.studio-page-overview .studio-main {background:#f5f3eb}
+html.agromax-ui .living-shell.studio-page-overview .studio-mobile-toggle {color:#254632}
+html.agromax-ui .living-shell .terra-hero {background:linear-gradient(90deg,#12382df0,#173b2a90),url('/visuals/films/tarim2/terraces.webp') center/cover;border-radius:22px;min-height:250px;align-content:center}
+html.agromax-ui .living-shell .terra-hero :is(h1,h2,p) {color:#f7f3df}
+html.agromax-ui .living-shell .terra-hero h1 {font-weight:550;letter-spacing:-.045em}
+html.agromax-ui .living-shell.studio-page-assistant .studio-main {background:#e5ecdf}
+html.agromax-ui .living-shell.studio-page-terra-brain .studio-main {background:#e8eddf}
+html.agromax-ui .living-shell.studio-page-history .studio-main,html.agromax-ui .living-shell.studio-page-reports .studio-main {background:#efe9de}
+html.agromax-ui .living-shell.studio-page-weather .studio-main {background:#e9efec}
+@media(max-width:640px){html.agromax-ui .living-shell.studio-page-overview .studio-content{padding:12px}html.agromax-ui .living-shell .dashboard-hero{min-height:360px}.pulse-progress{width:100%}}
+html.agromax-ui .living-loader>div>p {color:#f0f1da;text-shadow:0 2px 16px #0c241e}
+html.agromax-ui .living-loader>svg {opacity:.3}
+html.agromax-ui .living-loader .agromax-logo-mark {color:#dce7b8;--atlas-logo-ink:#183a2c}

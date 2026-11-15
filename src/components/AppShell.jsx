@@ -5,19 +5,28 @@ import {
   Search,
   ChevronRight,
   LogOut,
-  Cable,
-  ArrowUpRight,
   X,
   Menu,
   Bell,
   Settings2,
+  FileText, ScanLine,
 } from "lucide-react";
-import { availableModules, navigationGroups } from "../features/modules";
+import { availableModules, primaryNavigation, workspaceSection } from "../features/modules";
 import { I } from "./icons";
 import QuickSearch from "./QuickSearch";
-import Brand, { FilizAvatar } from "./Brand";
+import SceneSurface from "../features/cinema/SceneSurface";
+import RouteCurtain from "../features/cinema/RouteCurtain";
+import "./navigation-v2.css";
+const navigationNotes = { overview: "Bugünün hikâyesi", fields: "Toprağın izini sür", architect: "Büyük resmi gör", twin: "Olasılıkları keşfet", "terra-brain": "Veriden anlayışa", flight: "Gökyüzünden sahaya", tasks: "Planla, uygula, izle", assistant: "Birlikte düşünelim" };
+function illuminate(event) {
+  if (event.pointerType === "touch" || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  const node = event.currentTarget, rect = node.getBoundingClientRect();
+  node.style.setProperty("--pointer-x", `${event.clientX - rect.left}px`);
+  node.style.setProperty("--pointer-y", `${event.clientY - rect.top}px`);
+}
 export default function AppShell({
   page,
+  scene = page,
   user,
   fields,
   tasks,
@@ -39,9 +48,12 @@ export default function AppShell({
       }
     }),
     [search, setSearch] = useState(false);
+  const [missionMenuExpanded,setMissionMenuExpanded] = useState(false);
+  const compactNavigation = ["drones","architect"].includes(page) ? !missionMenuExpanded : slim;
   const menuButton = useRef(null),
     sidebar = useRef(null);
   const modules = availableModules(!!workspace);
+  const section = workspaceSection(page);
   const active = modules.find((m) => m[0] === page) || modules[0],
     pending = tasks.filter((t) => !t.done).length;
   const roles = {
@@ -107,31 +119,21 @@ export default function AppShell({
     onNavigate(id);
     setMobile(false);
   }
-  const group = (ids) =>
-    modules
-      .filter((m) => ids.includes(m[0]))
-      .map(([id, label, icon]) => {
-        const Icon = I[icon] || I.Sprout;
-        return (
-          <button
-            key={id}
-            className={`studio-nav-link ${page === id ? "is-active" : ""}`}
-            title={label}
-            aria-current={page === id ? "page" : undefined}
-            onClick={() => navigate(id)}
-          >
-            <span className="canopy-nav-icon">
-              <Icon size={19} aria-hidden="true" />
-            </span>
-            <span>{label}</span>
-            {id === "tasks" && pending > 0 && <b>{pending}</b>}
-            {page === id && <i />}
-          </button>
-        );
-      });
+  const sidebarButton = ([id, label]) => {
+    const entry = modules.find(([key]) => key === id);
+    if (!entry) return null;
+    const selected = page === id || section?.id === id;
+    const Icon = I[entry[2]] || I.Sprout;
+    return <button key={id} className={`studio-nav-link ${selected ? "is-active" : ""}`} onPointerMove={illuminate}
+      title={label} aria-label={label} aria-current={selected ? "page" : undefined} onClick={() => navigate(id)}>
+      <span className="canopy-nav-icon"><Icon size={19} aria-hidden="true" /></span>
+      <span className="nav-copy"><span>{label}</span><small>{navigationNotes[id]}</small></span>
+      {id === "tasks" && pending > 0 && <b>{pending}</b>}
+    </button>;
+  };
   return (
     <div
-      className={`studio-shell ${workspace ? "commercial-shell" : ""} ${slim ? "sidebar-slim" : ""} studio-page-${page}`}
+      className={`studio-shell cinematic-shell living-shell ${workspace ? "commercial-shell" : ""} ${compactNavigation ? "sidebar-slim" : ""} studio-page-${page}`}
     >
       <a
         className="workspace-skip-link"
@@ -161,14 +163,14 @@ export default function AppShell({
             onClick={() => navigate("overview")}
             aria-label="Agromax ana ekran"
           >
-            <Brand size={36} />
+            <img src="/brand/agromax-logo-light-v1.svg" alt="" width="161" height="38" />
           </button>
           <button
             className="studio-sidebar-collapse"
-            onClick={() => setSlim(!slim)}
-            aria-label={slim ? "Menüyü genişlet" : "Menüyü daralt"}
+            onClick={() => ["drones","architect"].includes(page) ? setMissionMenuExpanded(!missionMenuExpanded) : setSlim(!slim)}
+            aria-label={compactNavigation ? "Menüyü genişlet" : "Menüyü daralt"}
           >
-            {slim ? <PanelLeftOpen size={17} /> : <PanelLeftClose size={17} />}
+            {compactNavigation ? <PanelLeftOpen size={17} /> : <PanelLeftClose size={17} />}
           </button>
           <button
             className="studio-mobile-close"
@@ -178,66 +180,33 @@ export default function AppShell({
             <X size={20} />
           </button>
         </div>
-        <div className="studio-workspace">
-          <span>{user.name.charAt(0).toLocaleUpperCase("tr-TR")}</span>
-          <div>
-            <strong>{workspace?.name || "Benim işletmem"}</strong>
-            <small>{roles[workspace?.role] || "Kişisel çalışma alanı"}</small>
-          </div>
-        </div>
         <div className="canopy-mobile-workspace">{organizationControl}</div>
-        <nav aria-label="Ana gezinme">
-          {group(["overview", "platform"])}
-          {navigationGroups.map(section => <details className="platform-nav-group" key={section.id} open={section.pages.includes(page) || undefined}>
-            <summary aria-label={section.label} title={section.label}><span>{section.label}</span><ChevronRight size={14} /></summary>
-            {group(section.pages)}
-          </details>)}
+        <div className="navigation-intro"><span>TOPRAKLA BAĞ KUR.</span><small>Gözlemden geleceğe</small></div>
+        <nav className="studio-primary-nav" aria-label="Ana gezinme">
+          {primaryNavigation.map(sidebarButton)}
         </nav>
-        <button
-          className={`studio-filiz ${page === "assistant" ? "is-active" : ""}`}
-          aria-label="Filiz"
-          onClick={() => navigate("assistant")}
-          title="Filiz kayıt rehberi"
-        >
-          <span>
-            <FilizAvatar size={37} />
-          </span>
-          <div>
-            <strong>Filiz</strong>
-            <small>Kayıtlarından birlikte ilerleyelim</small>
+        <div className="studio-sidebar-footer studio-utility-nav">
+          <div className="studio-workspace">
+            <span>{user.name.charAt(0).toLocaleUpperCase("tr-TR")}</span>
+            <div><strong>{workspace?.name || "Benim işletmem"}</strong><small>{roles[workspace?.role] || "Kişisel çalışma alanı"}</small></div>
           </div>
-          <ArrowUpRight size={17} />
-        </button>
-        <div className="studio-sidebar-footer">
-          {workspace && (
-            <button
-              className={`studio-nav-link ${page === "settings" ? "is-active" : ""}`}
-              onClick={() => navigate("settings")}
-              title="Hesap ve işletme"
-            >
-              <Settings2 size={20} />
-              <span>Hesap ve işletme</span>
-            </button>
-          )}
-          <button
-            className={`studio-nav-link ${page === "integrations" ? "is-active" : ""}`}
-            onClick={() => navigate("integrations")}
-            title="Veri bağlantıları"
-          >
-            <Cable size={20} />
-            <span>Veri bağlantıları</span>
-          </button>
+          <button className="studio-nav-link" title="Bitki tanıma" aria-label="Bitki tanıma" onClick={() => navigate("plant-studio")}><ScanLine size={19}/><span>Bitki tanıma</span></button>
+          <button className="studio-nav-link" title="Raporlar ve MRV" aria-label="Raporlar ve MRV" onClick={() => navigate(workspace ? "reports" : "mrv")}><FileText size={19}/><span>Raporlar ve MRV</span></button>
+          <button className="studio-nav-link" title="İşletme ve ayarlar" aria-label="İşletme ve ayarlar" onClick={() => navigate(workspace ? "settings" : "integrations")}><Settings2 size={19}/><span>İşletme ve ayarlar</span></button>
+          <a className="studio-nav-link" href="https://github.com/RumeliFatihi51/agromax-platform-upgrade/releases"
+            target="_blank" rel="noreferrer"><PanelLeftOpen size={19}/><span>Windows uygulamasını indir</span></a>
           <div className="studio-user">
             <span className="studio-user-avatar">
               {user.name.charAt(0).toLocaleUpperCase("tr-TR")}
             </span>
             <div>
               <strong>{user.name}</strong>
-              <small>Çalışma alanım</small>
+              <small>{user.guest ? "Bu tarayıcıdaki çalışma alanı" : "Çalışma alanım"}</small>
+              {user.guest && <a href="?account=existing">Mevcut hesabı aç</a>}
             </div>
-            <button aria-label="Çıkış yap" title="Çıkış yap" onClick={onLogout}>
+            {!user.guest && <button aria-label="Çıkış yap" title="Çıkış yap" onClick={onLogout}>
               <LogOut size={17} />
-            </button>
+            </button>}
           </div>
         </div>
       </aside>
@@ -266,7 +235,7 @@ export default function AppShell({
               onClick={() => setSearch(true)}
             >
               <Search size={17} />
-              <span>Hızlı erişim</span>
+              <span>Parsel, analiz, rapor ara…</span>
               <kbd>Ctrl K</kbd>
             </button>
             <span className="studio-today">
@@ -297,20 +266,31 @@ export default function AppShell({
           </div>
         </header>
         <main className="studio-content" id="main-content" tabIndex={-1}>
-          {children}
+          {section && <nav className="workspace-section-nav" onPointerMove={illuminate} aria-label={section.label + " araçları"}>
+            {section.pages.map(id => {
+              const item = modules.find(([key]) => key === id);
+              if (!item) return null;
+              const label = { architect:"Projeler", "field-studio":"İmza 3D", fields:"Parseller", satellite:"Uydu kaynakları", temporal:"Arazi hafızası", history:"Analiz geçmişi", intelligence:"Tarla zekâsı", evidence:"Kanıtlar", contradictions:"Tutarlılık", investigation:"İncelemeler", scenarios:"Senaryolar", economics:"Karşılaştırma", finance:"Maliyet defteri", tasks:"Görevler", operations:"Sezon ve saha", prescriptions:"Reçeteler", drones:"Drone", mrv:"MRV", access:"Çevrimdışı erişim", platform:"Platform merkezi" }[id] || item[1];
+              return <button key={id} onClick={() => navigate(id)} aria-current={id === page ? "page" : undefined}>{label}</button>;
+            })}
+          </nav>}
+          <SceneSurface id={scene}>{children}</SceneSurface>
           <footer className="studio-page-footer">
             <span>
               Toprağı anla. <strong>Geleceği yetiştir.</strong>
             </span>
             <small>agromax · Çalışma alanınız</small>
+            <a href="/visuals/films/tarim2/credits.txt" target="_blank" rel="noreferrer">Görsel kaynakları</a>
           </footer>
         </main>
       </div>
+      <RouteCurtain id={`${page}:${scene || ""}`} label={active[1]} />
       <nav className="canopy-mobile-dock" aria-label="Hızlı gezinme">
         {[
           ["overview", "Ana ekran"],
           ["fields", "Parseller"],
-          ["tasks", "Görevler"],
+          ["architect", "Architect"],
+          ["tasks", "Saha"],
           ["assistant", "Filiz"],
         ].map(([id, label]) => {
           const entry = modules.find(([key]) => key === id);
@@ -318,7 +298,7 @@ export default function AppShell({
           return (
             <button
               key={id}
-              aria-current={page === id ? "page" : undefined}
+              aria-current={page === id || section?.id === id ? "page" : undefined}
               onClick={() => navigate(id)}
             >
               <Icon size={21} aria-hidden="true" />

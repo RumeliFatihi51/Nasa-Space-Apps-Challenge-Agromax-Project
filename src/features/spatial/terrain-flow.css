@@ -1,0 +1,77 @@
+.terrain-flow {
+  background: #142f29;
+  color: #edf4e8;
+  border: 1px solid #446a58;
+  border-radius: 10px;
+  padding: clamp(12px, 2vw, 24px);
+  margin-bottom: 14px;
+}
+.terrain-flow header,
+.terrain-flow header small,
+.terrain-flow-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.terrain-flow header {
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+.terrain-flow header small {
+  letter-spacing: 0.1em;
+  color: #bae4a5;
+  font-weight: 800;
+}
+.agromax-ui .terrain-flow h2 {
+  color: #edf4e8;
+  font-size: clamp(1.7rem, 3.6vw, 3rem);
+  letter-spacing: -0.05em;
+  margin: 4px 0;
+}
+.terrain-flow p {
+  color: #c1d5c8;
+  margin: 0.4em 0;
+}
+.terrain-flow :is(button, select) {
+  background: #24493e;
+  color: #f3f7e9;
+  border: 1px solid #699282;
+  border-radius: 5px;
+  min-height: 40px;
+  padding: 5px 10px;
+}
+.terrain-flow button[aria-pressed="true"] {
+  background: #c6e9a8;
+  color: #17352a;
+}
+.terrain-flow-map {
+  height: clamp(340px, 56vh, 640px);
+  margin-top: 10px;
+  position: relative;
+  border-radius: 6px;
+  overflow: hidden;
+  background: #233b31;
+}
+.terrain-flow-facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 145px), 1fr));
+  gap: 7px;
+  margin: 9px 0;
+}
+.terrain-flow-facts > div {
+  min-width: 0;
+  border: 1px solid #446a58;
+  padding: 8px;
+  border-radius: 5px;
+}
+.terrain-flow-facts dt {
+  font-size: 0.74rem;
+  color: #bdd1c1;
+}
+.terrain-flow-facts dd {
+  margin: 0;
+  font-size: 0.89rem;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}

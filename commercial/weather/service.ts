@@ -5,7 +5,7 @@ import type { CommercialDb } from "../db/store";
 import type { Context } from "../organizations/service";
 import { observationCache } from "../db/schema";
 import { boundsOf } from "../../server/satellite.js";
-import { fetchPower, historyInput } from "./power";
+import { fetchPower, historyInput, powerParameters } from "./power";
 import { DomainError } from "../core/errors";
 import { geometryHash } from "../../server/analysis-jobs.js";
 export async function historicalWeather(
@@ -35,6 +35,22 @@ export async function historicalWeather(
       lat: (bounds[1] + bounds[3]) / 2,
       lng: (bounds[0] + bounds[2]) / 2,
     };
+  if (field.demo === true && field.demoVersion === 1) {
+    if (range.end >= new Date().toISOString().slice(0,10))
+      throw new DomainError("HISTORICAL_DATE_REQUIRED","Geçmişte tamamlanmış günleri seçin.",400);
+    const count = (Date.parse(range.end) - Date.parse(range.start)) / 86400000 + 1;
+    return { fieldId, geometryVersion:hash, source:"Sentetik günlük hava", kind:"model_estimate",
+      sources:["AgroMax örnek veri"], methodVersion:"demo-weather-v1", timeStandard:"UTC", point, range,
+      fetchedAt:new Date().toISOString(), parameters:powerParameters, nativeGrid:"Sentetik eğitim senaryosu",
+      observations:Array.from({length:count},(_, offset)=>{
+        const index=Math.floor(Date.parse(range.start)/86400000)+offset;
+        return {
+        date:new Date(Date.parse(range.start)+offset*86400000).toISOString().slice(0,10),
+        values:{T2M:12+Math.sin(index/3)*3,T2M_MIN:7+Math.sin(index/3)*3,T2M_MAX:17+Math.sin(index/3)*3,
+          RH2M:68,WS2M:2.8,ALLSKY_SFC_SW_DWN:3.2,PRECTOTCORR:index%6===0?5:0,PS:101.2}
+      };})
+    };
+  }
   const data = await fetchPower(point, range);
   const body = {
     ...data,

@@ -159,9 +159,9 @@ export default function HistoricalWeather({
               <br />
               {data.methodVersion} · {data.sources.join(", ")}
               <br />
-              <a href={data.sourceURL} target="_blank" rel="noreferrer">
+              {data.sourceURL && <a href={data.sourceURL} target="_blank" rel="noreferrer">
                 {t("Kaynak ve yöntem", "Source and methodology")}
-              </a>
+              </a>}
             </p>
           </div>
         </section>

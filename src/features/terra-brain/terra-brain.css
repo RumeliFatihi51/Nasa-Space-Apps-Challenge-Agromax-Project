@@ -1,0 +1,133 @@
+.terra {
+  --terra-ink: #19382c;
+  --terra-accent: #46673c;
+  --terra-line: #d3d9c8;
+  --terra-paper: #fcfaf2;
+  --terra-muted: #edf0e6;
+  color: var(--terra-ink);
+  display: grid;
+  gap: 1.1rem;
+  min-width: 0;
+}
+.terra h1, .terra h2, .terra p { margin: 0; color: inherit; }
+.terra p { line-height: 1.65; }
+.terra-hero {
+  padding: clamp(1.4rem, 4vw, 3.6rem);
+  color: #fbf6e5;
+  background: linear-gradient(95deg, #132f27f5 20%, #19382cbb 68%, #19382c70),
+    var(--sidebar-image, linear-gradient(130deg, #224035, #435d39)) center/cover;
+  border-radius: 14px;
+  display: grid;
+  gap: .55rem;
+}
+.terra-hero h1 { font-size: clamp(2.4rem, 5vw, 4.4rem); line-height: 1.09; letter-spacing: -.06em; }
+.terra-hero .px-kicker { color: #dce8a9; }
+.terra-context, .terra-nav, .terra-actions, .terra-heading {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: .7rem;
+}
+.terra-context { align-items: end; }
+.terra-context label:first-child { flex: 1; min-width: min(100%, 12rem); }
+.terra-context label:last-child { flex: 0 1 12rem; }
+.terra-nav { border-block-end: 1px solid var(--terra-line); }
+.terra-nav button {
+  padding: .7rem .75rem;
+  min-height: 44px;
+  background: transparent;
+  color: inherit;
+  display: inline-flex;
+  align-items: center;
+  gap: .45rem;
+  border: 0;
+  border-block-end: 2px solid transparent;
+  cursor: pointer;
+}
+.terra-nav button[aria-pressed="true"] { font-weight: 750; border-block-end-color: currentColor; }
+.terra-grid { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 1rem; align-items: start; }
+.terra-results { display: grid; gap: 1rem; min-width: 0; }
+.terra-surface, .terra-notice {
+  min-width: 0;
+  border: 1px solid var(--terra-line);
+  border-radius: 12px;
+  background: var(--terra-paper);
+  padding: clamp(.95rem, 2vw, 1.45rem);
+  display: grid;
+  gap: .85rem;
+  justify-items: start;
+}
+.terra-notice { background: var(--terra-muted); overflow-wrap: anywhere; }
+.terra-form { display: grid; gap: .75rem; justify-items: stretch; min-width: 0; width: 100%; }
+.terra label { display: grid; gap: .3rem; font-weight: 650; min-width: 0; }
+.terra-context label:first-child { grid-template-columns: auto 1fr; }
+.terra-context select { grid-column: 1 / -1; }
+.terra input:not([type="checkbox"], [type="range"]), .terra select {
+  box-sizing: border-box; width: 100%; min-width: 0; min-height: 44px;
+  border: 1px solid var(--terra-line); border-radius: 6px; padding: .45rem .62rem;
+  background: var(--terra-paper); color: var(--terra-ink); font: inherit;
+}
+.terra .terra-check { display: flex; align-items: center; }
+.terra input[type="range"], .terra input[type="checkbox"] { accent-color: var(--terra-accent); }
+.terra fieldset {
+  display: grid; gap: .65rem; min-width: 0; margin: 0;
+  border: 1px solid var(--terra-line); border-radius: 8px; padding: .65rem;
+}
+.terra fieldset button { justify-self: start; }
+.terra-application, .terra-parameters, .terra-eval {
+  display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .65rem; align-items: end;
+}
+.terra-parameters { margin-block-start: .65rem; }
+.terra-heading { justify-content: space-between; width: 100%; }
+.terra-table { width: 100%; max-width: 100%; overflow: auto; }
+.terra-table table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+.terra-table th, .terra-table td { text-align: start; padding: .65rem .55rem; border-bottom: 1px solid var(--terra-line); }
+.terra-table thead { background: var(--terra-muted); }
+.terra-table small, .terra-sources small, .terra-sources code { display: block; overflow-wrap: anywhere; }
+.terra-sources ul, .terra-notice ul { margin: 0; padding-inline-start: 1.25rem; }
+.terra-sources li { margin-block: .6rem; }
+.terra :is(button, summary, input, select):focus-visible { outline: 2px solid var(--terra-accent); outline-offset: 3px; }
+.terra summary { cursor: pointer; min-height: 28px; }
+.terra-chart { margin: 0; width: 100%; min-width: 0; }
+.terra-chart svg { width: 100%; display: block; overflow: visible; }
+.terra-chart text { font-size: 11px; fill: currentColor; }
+.terra-chart polyline { fill: none; stroke: currentColor; stroke-width: 2.5; vector-effect: non-scaling-stroke; }
+.terra-chart circle { fill: currentColor; }
+.terra-gridline { stroke: var(--terra-line); }
+.terra-focusline { stroke: currentColor; stroke-dasharray: 3 4; opacity: .35; }
+.terra-line-0, .terra-chart-values span:first-child { color: #995427; }
+.terra-line-1, .terra-chart-values span:last-child { color: #257258; }
+.terra-chart-values { display: flex; gap: 1rem; font-weight: 750; font-variant-numeric: tabular-nums; }
+.terra-chart label { width: 100%; margin-block: .75rem; }
+.terra-chart input { width: 100%; min-height: 32px; }
+.terra-kicker { font-size: .87rem; font-weight: 750; }
+@media (max-width: 880px) {
+  .terra-grid { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 480px) {
+  .terra-context label:last-child { flex: 1 1 100%; }
+  .terra-nav { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .2rem; }
+  .terra-nav button { padding-inline: .35rem; text-align: start; font-size: .85rem; }
+  .terra-table { font-size: .81rem; }
+  .terra-table th, .terra-table td { padding: .55rem .35rem; }
+}
+@media (prefers-color-scheme: dark) {
+  .terra {
+    --terra-ink: #e8f0e2;
+    --terra-accent: #b3d48b;
+    --terra-line: #4c6454;
+    --terra-paper: #22382e;
+    --terra-muted: #294237;
+  }
+  .terra-line-0, .terra-chart-values span:first-child { color: #f7b684; }
+  .terra-line-1, .terra-chart-values span:last-child { color: #90dab7; }
+}
+
+html.agromax-ui .terra-hero h1 { color: #f5f2e8; }
+
+.terra-provenance { color: var(--terra-muted, #52604f); font-size: .875rem; margin: 0; }
+.terra-advice { background: #eaf1e3; color: #203d2c; border-left: 4px solid #60834c; padding: 16px 20px; border-radius: 8px; margin: 12px 0 18px; }
+.terra-advice h3 { margin: 4px 0; }
+.terra-advice p { margin: 6px 0 0; }
+.terra-experiment-form { display: grid; gap: 12px; margin-top: 14px; }
+.terra-experiment-form label { max-width: 330px; }

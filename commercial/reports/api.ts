@@ -4,6 +4,8 @@ import { DomainError } from "../core/errors";
 import { identifier } from "../../shared/contracts/commercial";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import type { WorkspaceRequest } from "../core/api";
+import type { ReportSnapshot } from "./service";
+import { reportCsv } from "./csv";
 export async function reportRoutes({
   db,
   context,
@@ -14,8 +16,18 @@ export async function reportRoutes({
   path,
   method,
 }: WorkspaceRequest): Promise<Response | undefined> {
-  if (path === "/api/v1/reports" && method === "GET")
-    return Response.json({ reports: await listReports(db, context) });
+  if (path === "/api/v1/reports" && method === "GET") {
+    const rows=await listReports(db,context);
+    // Demo snapshots become real PDF artifacts through the existing worker.
+    // Never mark them completed or fabricate a storage URL in the SQL seed.
+    for(const row of rows.filter(row=>row.state==='queued').slice(0,3)) {
+      const report=await ownReport(db,context,row.id);
+      if(report.snapshot.demo===true && options.dispatchReport) {
+        try {await options.dispatchReport(report.id);} catch { /* Worker records its failure. */ }
+      }
+    }
+    return Response.json({reports:await listReports(db,context)});
+  }
   if (path === "/api/v1/reports" && method === "POST") {
     if (!options.dispatchReport)
       throw new DomainError(
@@ -44,7 +56,7 @@ export async function reportRoutes({
     );
   }
   const reportMatch = path.match(
-    /^\/api\/v1\/reports\/([a-f0-9]{32})(?:\/(download-link|file))?$/,
+    /^\/api\/v1\/reports\/([a-f0-9]{32})(?:\/(download-link|file|export))?$/,
   );
   if (reportMatch) {
     const report = await ownReport(db, context, reportMatch[1]!);
@@ -56,6 +68,20 @@ export async function reportRoutes({
         error: report.error,
         createdAt: report.createdAt,
       });
+    if (method === "GET" && reportMatch[2] === "export") {
+      const format = url.searchParams.get("format");
+      if (format !== "csv" && format !== "json")
+        throw new DomainError("INVALID_FORMAT", "CSV veya JSON biçimini seçin.", 400);
+      const snapshot = report.snapshot as unknown as ReportSnapshot;
+      return new Response(format === "csv" ? reportCsv(snapshot) : JSON.stringify(snapshot), {
+        headers: {
+          "Content-Type": format === "csv" ? "text/csv; charset=utf-8" : "application/json; charset=utf-8",
+          "Content-Disposition": `attachment; filename="agromax-${report.id}.${format}"`,
+          "Cache-Control": "private, no-store",
+          "X-Content-Type-Options": "nosniff",
+        },
+      });
+    }
     const signature = (expires: string) =>
       createHmac("sha256", options.secret)
         .update(

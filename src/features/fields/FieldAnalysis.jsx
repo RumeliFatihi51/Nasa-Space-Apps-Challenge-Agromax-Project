@@ -1,3 +1,4 @@
+import useWorkspaceSync from "../../sync/useWorkspaceSync";
 import { useEffect, useRef, useState } from "react";
 import {
   ArrowLeft,
@@ -7,7 +8,6 @@ import {
   ShieldCheck,
   Info,
   Download,
-  Image as ImageIcon,
 } from "lucide-react";
 import ObservationPlot from "./ObservationPlot";
 import { api, requestAnalysis } from "../../api";
@@ -19,7 +19,10 @@ import {
   observationAngles,
   metricAvailability,
 } from "../../../shared/metrics";
-import ParcelMap from "./ParcelMap";
+import SatelliteScene, { sceneDatesFor } from "./SatelliteScene";
+import AnalysisReport from "./AnalysisReport";
+import { FieldStatus } from "./FieldInsights";
+import { openSentinelMetrics, openSentinelProvider } from "../../../shared/open-sentinel";
 export const number = (value) =>
   Number.isFinite(value)
     ? value.toLocaleString("tr-TR", {
@@ -44,31 +47,71 @@ function download(data, name, type) {
   a.click();
   URL.revokeObjectURL(url);
 }
+function ParcelRevisions({ fieldId }) {
+  const [revisions, setRevisions] = useState(null);
+  const [error, setError] = useState("");
+  const controller = useRef(null);
+  useEffect(() => () => controller.current?.abort(), []);
+  async function load() {
+    if (controller.current) return;
+    const request = new AbortController();
+    controller.current = request;
+    setError("");
+    try {
+      const response = await api("records/" + fieldId + "/revisions", undefined, "GET", { signal: request.signal });
+      if (!request.signal.aborted) setRevisions(response.revisions);
+    } catch (failure) {
+      if (!request.signal.aborted) setError(failure.message);
+    } finally {
+      controller.current = null;
+    }
+  }
+  const actions = { snapshot: "İlk kayıt", created: "Oluşturuldu", update: "Düzenlendi", delete: "Kaldırıldı", restore: "Geri alındı" };
+  return <details className="parcel-report-details" onToggle={event => {
+    if (event.currentTarget.open && revisions === null && !error) void load();
+  }}>
+    <summary>Parsel değişiklik geçmişi</summary>
+    {error ? <p role="alert">{error} <button className="text-button" onClick={load}>Tekrar dene</button></p> :
+      revisions === null ? <p role="status">Geçmiş yükleniyor…</p> :
+      revisions.length ? <div className="table-wrap"><table><thead><tr><th>Sürüm</th><th>İşlem</th><th>Tarih</th><th>Geometri özeti</th></tr></thead>
+        <tbody>{revisions.map(item => <tr key={item.version}><th scope="row">v{item.version}</th>
+          <td>{actions[item.action]}</td><td>{item.changedAt ? date(item.changedAt) : "—"}</td>
+          <td><code title={item.geometryVersion}>{item.geometryVersion?.slice(0, 12)}</code></td></tr>)}</tbody>
+      </table></div> : <p>Parsel sürüm geçmişi henüz kaydedilmemiş.</p>}
+  </details>;
+}
+
 export default function FieldAnalysis({
   field,
   onBack,
   onEdit,
   onAnalysis,
   initialAnalysis = null,
+  archiveId,
+  embedded = false,
+  selectedMetric,
+  onSelectMetric,
+  satellite,
+  canAnalyze = true,
+  onConnections,
+  onAssistant,
+  onInsights,
 }) {
   const areaFormat = useAreaFormat();
+  const Heading = embedded ? "h2" : "h1";
   const request = useRef(null);
-  const imageRequest = useRef(null);
   const [analysis, setAnalysis] = useState(initialAnalysis),
     [status, setStatus] = useState(null),
     [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
-    [metricId, setMetricId] = useState("NDVI"),
-    [image, setImage] = useState(null),
-    [imageDate, setImageDate] = useState(""),
-    [layer, setLayer] = useState("RGB"),
-    [imageBusy, setImageBusy] = useState(false),
+    [localMetric, setMetricId] = useState("NDVI"),
+    [selectedDate, setSelectedDate] = useState(""),
+    [mapMetric, setMapMetric] = useState(null),
     [group, setGroup] = useState("Tümü"),
     [job, setJob] = useState(null);
   useEffect(
     () => () => {
       request.current?.abort();
-      imageRequest.current?.abort();
     },
     [],
   );
@@ -96,13 +139,18 @@ export default function FieldAnalysis({
       active = false;
     };
   }, [field.id, initialAnalysis]);
-  useEffect(
-    () => () => {
-      if (image?.url) URL.revokeObjectURL(image.url);
-    },
-    [image],
-  );
+  const connection = status ?? satellite;
+  const openSource = connection?.provider === openSentinelProvider;
+  async function retryConnection() {
+    try {
+      setError("");
+      setStatus(await api("satellite/status"));
+    } catch (error) {
+      setError(error.message);
+    }
+  }
   async function refresh() {
+    if (!connection?.configured || !canAnalyze || busy || !field.geometry) return;
     setBusy(true);
     setError("");
     request.current?.abort();
@@ -121,59 +169,34 @@ export default function FieldAnalysis({
       setBusy(false);
     }
   }
-  async function loadImage() {
-    setImageBusy(true);
-    setError("");
-    imageRequest.current?.abort();
-    const controller = new AbortController();
-    imageRequest.current = controller;
-    try {
-      const response = await fetch("/api/records/" + field.id + "/image", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          date: imageDate,
-          layer,
-          analysisId: analysis?.historyId,
-        }),
-        signal: controller.signal,
-      });
-      if (!response.ok) {
-        const e = await response.json();
-        throw new Error(e.error);
-      }
-      const blob = await response.blob();
-      controller.signal.throwIfAborted();
-      setImage({
-        url: URL.createObjectURL(blob),
-        bounds: JSON.parse(response.headers.get("X-Image-Bounds")),
-        date: imageDate,
-        layer,
-        legend: JSON.parse(
-          decodeURIComponent(response.headers.get("X-Image-Legend") || "null"),
-        ),
-        validPixels: Number(response.headers.get("X-Valid-Pixels")),
-        totalPixels: Number(response.headers.get("X-Total-Pixels")),
-        interval: JSON.parse(
-          response.headers.get("X-Image-Interval") || "null",
-        ),
-      });
-    } catch (e) {
-      if (e.name !== "AbortError") setError(e.message);
-    } finally {
-      setImageBusy(false);
-    }
-  }
-  const sceneDates = [
-    ...new Set(
-      (analysis?.scenes || [])
-        .map((s) => s.properties?.datetime?.slice(0, 10))
-        .filter(Boolean),
-    ),
-  ]
-    .sort()
-    .reverse();
+  const syncRevision=useWorkspaceSync();
+  useEffect(()=>{
+    if(!syncRevision||initialAnalysis||busy)return;
+    const controller=new AbortController();
+    api(`records/${field.id}/analysis`,undefined,'GET',{signal:controller.signal})
+      .then(value=>{if(!controller.signal.aborted){setAnalysis(value.analysis);setStatus(value.status);}})
+      .catch(error=>{if(!controller.signal.aborted)setError(error.message);});
+    return ()=>controller.abort();
+  },[syncRevision,field.id,initialAnalysis,busy]);
+  const sceneDates = sceneDatesFor(analysis);
+  const imageDate = sceneDates.includes(selectedDate) ? selectedDate : sceneDates[0];
   const catalog = [...metrics, ...observationAngles];
+  const metricId = catalog.some((metric) => metric.id === selectedMetric) ? selectedMetric : localMetric;
+  const provider = analysis?.provider || status?.provider || "cdse";
+  const availability = (id) => analysis?.demo && !analysis.comparison?.[id] ? "Bu katman örnek veri setinde yok." : provider === openSentinelProvider
+    ? analysis?.availableMetrics && !analysis.availableMetrics.includes(id) ? "Bu kayıt bu katmanı içermiyor."
+      : openSentinelMetrics.some(metric => metric.id === id) ? null : "Bu katman açık Sentinel-2 arşivi analizinde yok."
+    : metricAvailability(id, provider);
+  const layers = provider === openSentinelProvider ? openSentinelMetrics.filter(({ id }) => !availability(id)).map(({ id }) => ({ id, label: id })) : [
+    ...(analysis?.demo ? [] : [{ id: "RGB", label: "Doğal renk (RGB)" }]),
+    ...catalog.filter(({ id }) => !availability(id))
+      .map(({ id }) => ({ id, label: id })),
+  ];
+  function selectMetric(id) {
+    if (onSelectMetric) onSelectMetric(id);
+    else setMetricId(id);
+    if (layers.some((layer) => layer.id === id)) setMapMetric(id);
+  }
   const metric = catalog.find((m) => m.id === metricId),
     comparison = analysis?.comparison?.[metricId];
   const observations =
@@ -216,14 +239,15 @@ export default function FieldAnalysis({
         <ArrowLeft size={17} />
         {initialAnalysis ? "Analiz geçmişine dön" : "Tarlalara dön"}
       </button>
-      <div className="analysis-heading">
+      <header className="analysis-heading">
         <div>
-          <span className="eyebrow">PARSELİNİZİN HİKÂYESİ</span>
-          <h2>{field.name}</h2>
+          <span className="eyebrow">PARSEL ANALİZİ</span>
+          <Heading>{field.name}</Heading>
           <p>
             {field.crop || "Ürün belirtilmedi"} ·{" "}
             {areaFormat.format(field.area)} ·{" "}
             {field.location || "Konum belirtilmedi"}
+            {field.sowingDate && " · Ekim " + date(field.sowingDate)}
           </p>
         </div>
         <div>
@@ -236,7 +260,7 @@ export default function FieldAnalysis({
             <button
               className="primary"
               onClick={refresh}
-              disabled={busy || !field.geometry}
+              disabled={!connection?.configured || !canAnalyze || busy || !field.geometry}
             >
               <RefreshCw size={17} className={busy ? "spin" : ""} />
               {busy
@@ -247,15 +271,20 @@ export default function FieldAnalysis({
             </button>
           )}
         </div>
-      </div>
+      </header>
+      {onInsights && <FieldStatus field={field} analysis={analysis} onOpen={onInsights} />}
+      {!initialAnalysis && <ParcelRevisions key={field.id + ":" + (field.version || 1)} fieldId={field.id} />}
       {error && (
         <p className="error" role="alert">
           {error}
         </p>
       )}
+      {!initialAnalysis && !canAnalyze && (
+        <p className="data-warning"><Info size={19} /> Yeni analiz için çalışma alanı yetkisi ve hesabın gerektirdiği e-posta doğrulaması gerekli.</p>
+      )}
       {initialAnalysis && (
         <div className="data-warning">
-          Geçmiş analiz kaydı · {analysis.historyId?.slice(0, 8)} · Bu ekran,
+          Geçmiş analiz kaydı · {(archiveId || analysis.historyId)?.slice(0, 8)} · Bu ekran,
           analizin kaydedildiği parsel sınırını ve sonuç sürümünü gösterir.
         </div>
       )}
@@ -272,92 +301,40 @@ export default function FieldAnalysis({
           “Sınırı düzenle” ile parselinizi çizin.
         </div>
       )}
-      {status && !status.configured && (
+      {!initialAnalysis && connection && !connection.configured && (
         <div className="data-warning">
           <Satellite size={20} />
           <div>
-            <strong>Copernicus bağlantısı tamamlanmayı bekliyor.</strong>
+            <strong>{connection.unavailable ? "Uydu bağlantı durumu alınamadı." : "Uydu analizi için kaynak ayarı gerekli."}</strong>
             <p>
-              Veri kaynağının sunucu yapılandırması eksik. Bağlantı
-              tamamlanmadan uydu sonucu üretilemez.
+              Bağlantı hazır olduğunda yeni bir uydu analizi başlatabilirsin.
             </p>
+            {onConnections && <button className="text-button" onClick={onConnections}>Veri bağlantılarını aç</button>}
+            <button className="text-button" onClick={retryConnection}>Bağlantıyı yeniden kontrol et</button>
           </div>
         </div>
       )}
+      {!initialAnalysis && openSource && <div className="data-warning" role="status">
+        <Satellite size={20} />
+        <div><strong>Analiz kaynağı · Sentinel‑2 L2A / Earth Search</strong>
+          <p>{analysis?.provider === openSentinelProvider
+            ? "Son doğrulanmış parsel analizi " + date(analysis.fetchedAt) + "."
+            : "Açık uydu arşivi seçili. İlk ölçüm için uydu verilerini güncelle."}
+          </p></div>
+      </div>}
       <div className="analysis-top-grid">
-        <section className="panel field-image">
-          <div className="panel-head">
-            <div>
-              <h2>Tarlanın görünümü</h2>
-              <p>
-                {image
-                  ? `${image.date} · ${image.layer} · Sentinel-2 L2A`
-                  : "Parsel sınırı ve gerçek harita altlığı"}
-              </p>
-            </div>
-            <ImageIcon size={19} />
-          </div>
-          {field.geometry ? (
-            <ParcelMap
-              key={field.id}
-              geometry={field.geometry}
-              image={image}
-              height={350}
-            />
-          ) : (
-            <div className="empty">Parsel sınırı bekleniyor.</div>
-          )}
-          <div className="image-controls">
-            <select
-              aria-label="Görüntü tarihi"
-              value={imageDate}
-              onChange={(e) => setImageDate(e.target.value)}
-            >
-              <option value="">Çekim tarihi seçin</option>
-              {sceneDates.map((d) => (
-                <option key={d}>{d}</option>
-              ))}
-            </select>
-            <select
-              aria-label="Uydu görüntü katmanı"
-              value={layer}
-              onChange={(e) => setLayer(e.target.value)}
-            >
-              <option value="RGB">Doğal renk (RGB)</option>
-              {catalog
-                .filter(
-                  (m) => !metricAvailability(m.id, status?.provider || "cdse"),
-                )
-                .map((m) => (
-                  <option key={m.id} value={m.id}>
-                    {m.id}
-                  </option>
-                ))}
-            </select>
-            <button
-              className="secondary"
-              disabled={!imageDate || imageBusy}
-              onClick={loadImage}
-            >
-              {imageBusy ? "Yükleniyor…" : "Görüntüyü getir"}
-            </button>
-          </div>
-          {image?.legend && (
-            <p className="image-legend">
-              <span
-                style={{ background: "linear-gradient(90deg,#30668c,#b9df55)" }}
-              />{" "}
-              {number(image.legend.min)} → {number(image.legend.max)} ·{" "}
-              {image.legend.unit}. {image.legend.method} Görüntü SCL 4/5/6 ve
-              CLD&lt;40 maskesiyle gösterilir.
-            </p>
-          )}
-        </section>
-        <section className="panel evidence-card">
+        <SatelliteScene
+          field={field} analysis={analysis} archiveId={archiveId} dates={sceneDates} day={imageDate}
+          onDay={setSelectedDate} layer={layers.some(({ id }) => id === (mapMetric || metricId)) ? (mapMetric || metricId) : layers[0]?.id} layers={layers}
+          onLayer={(id) => id === "RGB" ? setMapMetric(id) : selectMetric(id)}
+          compact={false}
+        />
+        <aside className="panel evidence-card" aria-label="Analiz kaynağı ve yöntem">
           <span className="stat-icon purple">
             <ShieldCheck size={22} />
           </span>
-          <h2>Her değerin arkasında bir kaynak.</h2>
+          <span className="eyebrow">KAYNAK DOSYASI</span>
+          <h2>Ölçümün dayanağı</h2>
           <dl>
             <dt>Kaynak</dt>
             <dd>{analysis?.source || "Henüz veri alınmadı"}</dd>
@@ -384,7 +361,7 @@ export default function FieldAnalysis({
             <dt>Analiz ızgarası</dt>
             <dd>
               {analysis
-                ? "20 m UTM · bantların doğal çözünürlüğü 10/20/60 m"
+                ? `${analysis.resolution ?? 20} m · ${analysis.nativeResolution || "bant çözünürlüğü 10/20/60 m"}`
                 : "—"}
             </dd>
             <dt>Yöntem</dt>
@@ -399,8 +376,19 @@ export default function FieldAnalysis({
             eksikliği veya toprak nem yüzdesi teşhisi değildir.
           </p>
           {analysis && <small>{analysis.mask}</small>}
-        </section>
+        </aside>
       </div>
+      {analysis && <AnalysisReport analysis={analysis} onAssistant={onAssistant && (() => onAssistant(field.id))} />}
+      <details className="parcel-report-details" open={selectedMetric ? true : undefined}>
+      <summary>İndeks grafikleri, çekimler ve teknik ayrıntılar</summary>
+      <section className="analysis-trend" aria-labelledby="analysis-trend-title">
+        <div>
+          <span className="eyebrow">ZAMAN SERİSİ</span>
+          <h2 id="analysis-trend-title">{metric.id} · {metric.label}</h2>
+          <p>Çekim tarihi harita ve grafikte birlikte seçilir. Kapsama eşiğini geçen ölçümler ayrı noktalar olarak görünür.</p>
+        </div>
+        <ObservationPlot observations={observations} metric={metric} selectedDate={imageDate} showEmpty />
+      </section>
       {field.notes && (
         <section className="panel metric-explanation">
           <h2>Tarla notların</h2>
@@ -448,12 +436,13 @@ export default function FieldAnalysis({
                   <tr
                     key={m.id}
                     className={metricId === m.id ? "selected" : ""}
-                    onClick={() => setMetricId(m.id)}
+                    onClick={() => selectMetric(m.id)}
                   >
                     <td>
                       <button
                         className="metric-link"
-                        onClick={() => setMetricId(m.id)}
+                        aria-pressed={metricId === m.id}
+                        onClick={(event) => { event.stopPropagation(); selectMetric(m.id); }}
                       >
                         {m.id}
                       </button>
@@ -471,7 +460,7 @@ export default function FieldAnalysis({
                       >
                         {Number.isFinite(c?.delta)
                           ? `${c.delta > 0 ? "+" : ""}${number(c.delta)}`
-                          : metricAvailability(m.id, status?.provider || "cdse")
+                          : availability(m.id)
                             ? "Kaynakta sunulmuyor"
                             : "Veri yetersiz"}
                       </span>
@@ -529,9 +518,9 @@ export default function FieldAnalysis({
         </div>
         <div className="metric-explanation">
           <p>{metric.description}</p>
-          {metricAvailability(metricId, status?.provider || "cdse") && (
+          {availability(metricId) && (
             <p className="data-warning">
-              {metricAvailability(metricId, status?.provider || "cdse")}
+              {availability(metricId)}
             </p>
           )}
           <code>{metric.formula.replaceAll("s.", "")}</code>
@@ -541,7 +530,6 @@ export default function FieldAnalysis({
               : "İki dönemde de en az %70 geçerli piksel kapsamına sahip gözlem bulunmadan karşılaştırma üretilemez. Eksik veri sıfır olarak gösterilmez."}
           </p>
         </div>
-        <ObservationPlot observations={observations} metric={metric} />
         {observations.length > 0 ? (
           <div className="analysis-table-wrap">
             <table className="analysis-table">
@@ -599,7 +587,7 @@ export default function FieldAnalysis({
             </h3>
             <p>
               {analysis
-                ? metricAvailability(metricId, status?.provider || "cdse") ||
+                ? availability(metricId) ||
                   "Seçilen aralıkta veri eksik, bulutlu veya hesaplama için yetersiz olabilir. Eksik ölçüm sıfır kabul edilmez."
                 : "Gerçek uydu analizi tamamlandığında günlük ölçümler burada yer alacak."}
             </p>
@@ -664,6 +652,7 @@ export default function FieldAnalysis({
           )}
         </section>
       )}
+      </details>
     </div>
   );
 }

@@ -85,7 +85,7 @@ export default function WeatherDashboard({ fields, onNavigate }) {
           </p>
         </div>
         <span className="weather-source-tag">
-          <CloudSun size={16} /> MET Norway
+          <CloudSun size={16} /> {data?.demo ? "Örnek hava senaryosu" : "MET Norway"}
         </span>
       </div>
       <div className="weather-toolbar">
@@ -374,7 +374,7 @@ export default function WeatherDashboard({ fields, onNavigate }) {
               </table>
             </div>
           </section>
-          <footer className="weather-attribution">
+          {data.demo ? <footer className="weather-attribution">Kaynak: sentetik saatlik hava senaryosu</footer> : <footer className="weather-attribution">
             Veri:{" "}
             <a href={data.sourceUrl} target="_blank" rel="noreferrer">
               MET Norway
@@ -386,7 +386,7 @@ export default function WeatherDashboard({ fields, onNavigate }) {
             · Agromax gösterim için dönüştürür; istasyon gözlemi veya resmî
             meteorolojik uyarı olarak sunulmaz. Sulama ve ilaçlama kararlarında
             saha koşullarını ayrıca değerlendir.
-          </footer>
+          </footer>}
         </>
       ) : data ? (
         <section className="weather-empty">

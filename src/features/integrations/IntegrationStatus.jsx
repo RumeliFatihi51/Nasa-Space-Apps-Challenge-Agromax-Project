@@ -9,21 +9,18 @@ import {
   RefreshCw,
 } from "lucide-react";
 import { api } from "../../api";
+import { mapboxEnabled } from "../fields/basemaps";
 import StatusIndicator from "../../components/ui/StatusIndicator";
 import {
   indices,
   availableMetrics,
   availableQualityBands,
 } from "../../../shared/metrics";
-export default function IntegrationStatus() {
-  const [status, setStatus] = useState(null),
-    [error, setError] = useState(""),
+export default function IntegrationStatus({ status }) {
+  const [error, setError] = useState(""),
     [nasa, setNasa] = useState(null),
     [checking, setChecking] = useState(false);
   useEffect(() => {
-    api("satellite/status")
-      .then(setStatus)
-      .catch((e) => setError(e.message));
     api("nasa/status")
       .then(setNasa)
       .catch((e) => setError(e.message));
@@ -60,26 +57,34 @@ export default function IntegrationStatus() {
         </div>
       </section>
       {error && <p className="error">{error}</p>}
-      <div className="integration-grid">
+      <div className="integration-register px-table-wrap" tabIndex={0} role="region" aria-label="Veri sağlayıcıları tablosu">
+        <table>
+          <caption>Veri sağlayıcıları</caption>
+          <thead><tr><th scope="col">Sağlayıcı</th><th scope="col">Kapsam</th><th scope="col">Durum</th></tr></thead>
+          <tbody>
         {[
           [
             Satellite,
-            "Copernicus Data Space",
+            status?.source || "Copernicus Data Space",
             status === null
               ? "Bağlantı durumu yükleniyor"
-              : status.health?.lastError
+              : status.unavailable
+                ? "Bağlantı durumu alınamadı"
+                : status.health?.lastError
                 ? "Son istek başarısız"
                 : status.health?.lastSuccessAt
                   ? "Gerçek servis yanıtı alındı"
                   : status.configured
-                    ? "Yapılandırıldı · Bu oturumda istek bekleniyor"
+                    ? status.provider === "earth-search" ? "Açık arşiv · Parsel analizine hazır" : "Yapılandırıldı · Bu oturumda istek bekleniyor"
                     : "Sunucu yapılandırması eksik",
-            `${indices.length} optik indeks, 12 spektral bant, AOT ve dört gözlem açısı. CDSE bu koleksiyonda WVP/CLP/CLM sağlamaz; desteklenmeyen ürünlerden sonuç üretilmez. ${status?.health?.lastSuccessAt ? "Son başarılı servis yanıtı: " + new Date(status.health.lastSuccessAt).toLocaleString("tr-TR", { timeZone: "Europe/Istanbul" }) : "Kimlik bilgilerinin varlığı tek başına canlı erişim kanıtı değildir."}`,
+            status?.provider === "earth-search"
+              ? "Sentinel‑2 açık arşivinden optik indeksler ve yüzey yansıtımı. Sonuçlar parselin analiz geçmişine kaydedilir."
+              : `${indices.length} optik indeks, 12 spektral bant, AOT ve dört gözlem açısı. CDSE bu koleksiyonda WVP/CLP/CLM sağlamaz; desteklenmeyen ürünlerden sonuç üretilmez. ${status?.health?.lastSuccessAt ? "Son başarılı servis yanıtı: " + new Date(status.health.lastSuccessAt).toLocaleString("tr-TR", { timeZone: "Europe/Istanbul" }) : "Kimlik bilgilerinin varlığı tek başına canlı erişim kanıtı değildir."}`,
           ],
           [
             Map,
             "Parsel haritası",
-            "Etkin · Esri World Imagery",
+            mapboxEnabled ? "Mapbox Satellite · Yapılandırıldı" : "Sentinel-2 Cloudless 2016 · Mapbox anahtarı eksik",
             "Çizim, köşe düzenleme, kesme, taşıma, döndürme ve GeoJSON işlemleri. Ticari ölçek için harita sunucusu kapasitesi ayrıca planlanmalı.",
           ],
           [
@@ -95,15 +100,14 @@ export default function IntegrationStatus() {
             "Sentinel-1 SAR, Landsat termal ve drone görüntüleri optik Sentinel-2 paketinden ayrı işlenecek.",
           ],
         ].map(([Icon, title, label, text]) => (
-          <article className="panel integration" key={title}>
-            <span className="stat-icon green">
-              <Icon size={21} />
-            </span>
-            <span className="tag">{label}</span>
-            <h2>{title}</h2>
-            <p>{text}</p>
-          </article>
+          <tr key={title}>
+            <th scope="row"><span><Icon size={20} aria-hidden="true" />{title}</span></th>
+            <td>{text}</td>
+            <td><span className="tag">{label}</span></td>
+          </tr>
         ))}
+          </tbody>
+        </table>
       </div>
       <section className="panel integration-catalog nasa-connections">
         <div className="workspace-section-heading">

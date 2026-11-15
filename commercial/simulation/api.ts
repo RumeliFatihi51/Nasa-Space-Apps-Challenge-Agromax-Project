@@ -1,4 +1,4 @@
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, isNull, sql } from "drizzle-orm";
 import { domainRecords, auditLog } from "../db/schema";
 import { requirePermission, uid } from "../organizations/service";
 import { ownField } from "../records/service";
@@ -11,19 +11,31 @@ import { balanceInput, runWaterBalance } from "./water-balance";
 
 const kind = "water_balance";
 
-export async function simulationRoutes({ db, context, body, path, method }: WorkspaceRequest) {
+export async function simulationRoutes({ db, context, body, path, method, url }: WorkspaceRequest) {
   const match = path.match(/^\/api\/v1\/fields\/([a-f0-9]{32})\/water-balance$/);
   if (!match || !["GET", "POST"].includes(method)) return;
   const fieldId = match[1]!;
-  requirePermission(context, method === "GET" ? "read" : "calculate");
+  const existingAccount = context.actor.authentication === "legacy-session";
+  requirePermission(context, method === "GET" ? "read" : existingAccount ? "record.write" : "calculate");
   if (method === "GET") {
     const field = await ownField(db, context, fieldId);
-    const runs = await db.select().from(domainRecords).where(and(
+    const scope = and(
       eq(domainRecords.organizationId, context.organization.id),
       eq(domainRecords.fieldId, fieldId),
       eq(domainRecords.kind, kind),
-    )).orderBy(desc(domainRecords.createdAt), desc(domainRecords.id)).limit(1);
-    return Response.json({ run: runs[0] ?? null, geometryVersion: geometryHash(field.geometry) }, {
+      isNull(domainRecords.deletedAt),
+    );
+    const runId = url.searchParams.get("run");
+    const geometryVersion = geometryHash(field.geometry);
+    const [runs, history] = await Promise.all([
+      db.select().from(domainRecords).where(and(scope, runId ? eq(domainRecords.id, runId) : undefined))
+        .orderBy(desc(domainRecords.createdAt), desc(domainRecords.id)).limit(1),
+      db.select({ id: domainRecords.id, createdAt: domainRecords.createdAt }).from(domainRecords)
+        .where(and(scope, sql`${domainRecords.data}->>'geometryVersion' = ${geometryVersion}`))
+        .orderBy(desc(domainRecords.createdAt), desc(domainRecords.id)).limit(50),
+    ]);
+    if (runId && !runs[0]) throw new DomainError("NOT_FOUND", "Model çalışması bulunamadı.", 404);
+    return Response.json({ run: runs[0] ?? null, geometryVersion, history }, {
       headers: { "Cache-Control": "no-store" },
     });
   }
@@ -33,6 +45,15 @@ export async function simulationRoutes({ db, context, body, path, method }: Work
     // Field mutations take this lock before writing geometry.
     await tx.execute(sql`select id from organizations where id=${context.organization.id} for update`);
     const field = await ownField(tx as unknown as CommercialDb, context, fieldId);
+    if (existingAccount) {
+      const result = await tx.execute(sql`select body from records where id=${fieldId}
+        and user_id=${context.actor.id} and kind='field' for update`) as { rows: { body: string }[] };
+      const current = result.rows[0] && JSON.parse(result.rows[0].body);
+      if (!current || current.deletedAt)
+        throw new DomainError("NOT_FOUND", "Parsel bulunamadı.", 404);
+      if (geometryHash(current.geometry) !== geometryHash(field.geometry))
+        throw new DomainError("GEOMETRY_CHANGED", "Parsel sınırı değişti. Yeniden yükleyip tekrar deneyin.", 409);
+    }
     if (!field.geometry)
       throw new DomainError("GEOMETRY_REQUIRED", "Önce parsel sınırını çizin.", 422);
     const areaM2 = validateGeometry(field.geometry).area * 1000;

@@ -1,26 +1,25 @@
-import { defineConfig } from 'vite'
-import react from '@vitejs/plugin-react'
-import tailwindcss from '@tailwindcss/vite'
-
-// https://vite.dev/config/
+import { defineConfig } from "vite";
+import { nitro } from "nitro/vite";
+import { workflow } from "workflow/vite";
+import { viteStaticCopy } from "vite-plugin-static-copy";
+const commercial = process.env.AGROMAX_RUNTIME === "commercial";
 export default defineConfig({
-  plugins: [react(), tailwindcss()],
-  base: './',
-  build: {
-    rollupOptions: {
-      output: {
-        manualChunks(id: string) {
-          if (id.includes('node_modules/three') || id.includes('@react-three')) {
-            return 'three-vendor';
-          }
-          if (id.includes('node_modules/react') || id.includes('node_modules/react-dom') || id.includes('node_modules/react-router')) {
-            return 'react-vendor';
-          }
-          if (id.includes('node_modules/lucide-react')) {
-            return 'ui-vendor';
-          }
-        }
+  server: { watch: { ignored: ["**/data/**", "**/.output/**", "**/dist/**", "**/.agromax-build/**"] } },
+  plugins: [
+    viteStaticCopy({ targets: ["Workers", "ThirdParty", "Assets", "Widgets"].map(name => ({
+      src: "node_modules/cesium/Build/Cesium/" + name,
+      dest: "cesium", rename: { stripBase: 4 },
+    })) }),
+    ...(commercial ? [nitro(), workflow()] : []),
+  ],
+  ...(commercial
+    ? {
+        nitro: {
+          serverDir: "runtime",
+          serverAssets: [{ baseName: "fonts", dir: "public/fonts" }],
+          compatibilityDate: "2026-11-01",
+          preset: process.env.VERCEL ? "vercel" : "node-server",
+        },
       }
-    }
-  }
-})
+    : {}),
+});

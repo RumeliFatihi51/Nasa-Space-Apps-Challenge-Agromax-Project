@@ -1,0 +1,12 @@
+*
+!package.json
+!package-lock.json
+!commercial/
+!shared/
+!server/
+!scripts/
+scripts/*
+!scripts/terra-brain-worker.ts
+!scripts/commercial-migrate.ts
+**/.env*
+**/*.pem

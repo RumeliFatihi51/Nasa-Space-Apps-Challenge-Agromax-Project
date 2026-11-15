@@ -1,0 +1,98 @@
+.agromax-ui .studio-primary-nav {
+  display: grid;
+  gap: 5px;
+  margin-top: 20px;
+}
+.agromax-ui .studio-primary-nav .studio-nav-link {
+  min-height: 50px;
+  letter-spacing: -0.018em;
+}
+.agromax-ui .studio-utility-nav {
+  margin-top: auto;
+  padding-top: 16px;
+  border-top: 1px solid #e8e9d627;
+}
+.agromax-ui .studio-utility-nav > .studio-nav-link {
+  font-size: 0.79rem;
+  min-height: 40px;
+}
+.agromax-ui .workspace-section-nav {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin: 0 0 20px;
+  padding: 0 0 10px;
+  overflow-x: auto;
+  scrollbar-width: thin;
+  border-bottom: 1px solid #c4b89c75;
+}
+.agromax-ui .workspace-section-nav button {
+  flex: 0 0 auto;
+  width: auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  white-space: nowrap;
+  min-height: 42px;
+  border: 0;
+  border-radius: 4px;
+  padding: 7px 13px;
+  background: transparent;
+  color: #483e2c;
+  font-weight: 650;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+.agromax-ui .workspace-section-nav button[aria-current="page"] {
+  background: #203f32;
+  color: #f9f5e7;
+}
+.agromax-ui .workspace-section-nav button:hover:not([aria-current]) {
+  background: #e7deca;
+}
+.agromax-ui .workspace-section-nav button:focus-visible {
+  outline: 2px solid #55744c;
+  outline-offset: -2px;
+}
+.agromax-ui .studio-page-architect .studio-page-footer {
+  display: none;
+}
+@media (max-width: 640px) {
+  .agromax-ui .workspace-section-nav {
+    margin-bottom: 10px;
+  }
+  .agromax-ui .workspace-section-nav button {
+    min-height: 44px;
+  }
+  html.agromax-ui .studio-shell .canopy-mobile-dock {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+  .agromax-ui .canopy-mobile-dock button {
+    min-width: 0;
+    padding-inline: 2px;
+  }
+  .agromax-ui .studio-primary-nav {
+    margin-top: 6px;
+  }
+}
+
+.agromax-ui .studio-shell > .studio-main {
+  min-width: 0;
+  max-width: 100%;
+}
+.agromax-ui .studio-content {
+  min-width: 0;
+}
+.agromax-ui .studio-content > .workspace-section-nav {
+  width: 100%;
+  min-width: 0;
+}
+@media (min-width: 641px) and (max-width: 920px) {
+  html.agromax-ui .studio-page-field-studio .studio-content {
+    overflow-x: clip;
+  }
+  html.agromax-ui .studio-page-field-studio .field-studio {
+    width: 100%;
+    max-width: 100%;
+  }
+}

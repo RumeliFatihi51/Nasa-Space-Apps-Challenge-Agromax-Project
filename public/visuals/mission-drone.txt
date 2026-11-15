@@ -1,0 +1,6 @@
+# Mission Control drone asset
+
+FPV racing drone by Innerscene, released CC0. AgroMax resizes the embedded textures for browser delivery and uses the model as a generic simulation visual.
+The four rotors have independent Blender-authored pivots. Rotation follows the simulation clock.
+https://www.innerscene.com/tools/library/3d-parts/fpv-racing-drone-037b67bd
+https://creativecommons.org/publicdomain/zero/1.0/

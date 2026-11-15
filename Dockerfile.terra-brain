@@ -1,0 +1,21 @@
+FROM node:24-bookworm-slim AS build
+WORKDIR /app
+COPY package.json package-lock.json ./
+RUN npm ci
+COPY commercial commercial
+COPY shared shared
+COPY server server
+COPY scripts scripts
+RUN ./node_modules/.bin/esbuild scripts/terra-brain-worker.ts scripts/commercial-migrate.ts \
+    --bundle --packages=external --platform=node --target=node24 --format=esm --out-extension:.js=.mjs --outdir=dist
+
+FROM node:24-bookworm-slim
+WORKDIR /app
+ENV NODE_ENV=production
+ENV AGROMAX_POSTGRES_DRIVER=pg
+COPY package.json package-lock.json ./
+RUN npm ci --omit=dev && npm cache clean --force
+COPY --from=build /app/dist ./dist
+COPY --from=build /app/commercial/db/migrations ./commercial/db/migrations
+USER node
+CMD ["node", "dist/terra-brain-worker.mjs"]

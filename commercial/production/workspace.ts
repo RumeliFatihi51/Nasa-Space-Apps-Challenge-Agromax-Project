@@ -13,16 +13,29 @@ import { accountRequest } from "./account";
 import { recordRoutes } from "../records/api";
 import { reportRoutes } from "../reports/api";
 import { assistantRoutes } from "../assistant/api";
+import { configuredAssistantModel } from "../assistant/model";
 import { historicalWeather } from "../weather/service";
 import { searchObservations } from "../analyses/observations";
 import { privateObjects, type PrivateObjects } from "../files/private-store";
 import { processReport } from "../reports/worker";
 import type { Actor } from "../organizations/service";
+import { intelligenceRoutes } from "../intelligence/api";
+import type { RuntimeOptions } from "../core/api";
+import { extendedEvidenceBundle } from "../intelligence/mrv";
+import { publishProjectedClaims } from "../intelligence/claims";
+import { simulationRoutes } from "../simulation/api";
+import { prepareTerraPilot, dispatchTerraPilot } from "../terra-brain/production";
+import { terraEnabled, terraRoutes } from "../terra-brain/api";
+import { terrainRoutes } from "../terrain/api";
+import { plantRoutes } from "../plants/api";
+import { isGuestEmail } from "../../shared/guest.js";
+import { terrainUpload } from "../../shared/terrain-upload.js";
 
 export async function createProductionWorkspace(config: {
   store?: Store;
   secret: string;
   objects?: PrivateObjects;
+  background?: RuntimeOptions["background"];
 }) {
   if (config.secret.length < 32)
     throw new Error("Workspace signing secret is required.");
@@ -45,7 +58,9 @@ export async function createProductionWorkspace(config: {
     },
     baseURL: "",
     secret: config.secret,
+    background: config.background,
     enforceQuota: false,
+    assistantModel: configuredAssistantModel(),
     reportDailyLimit: 10,
     dispatchReport: async (id: string) => {
       objects ||= privateObjects();
@@ -81,11 +96,14 @@ export async function createProductionWorkspace(config: {
     async handle(
       request: Request,
       sourceActor: { id: string; name: string; email: string },
+      sourceBundle?: (accountId: string, fieldId: string) => Promise<Record<string, unknown>>,
+      sourceForecast?: (accountId: string, fieldId: string) => ReturnType<NonNullable<RuntimeOptions["parcelForecast"]>>,
     ): Promise<Response> {
       try {
         const actor: Actor = {
           ...sourceActor,
           emailVerified: false,
+          guest: isGuestEmail(sourceActor.email),
           authentication: "legacy-session",
         };
         const ctx = await projectWorkspace(store, actor),
@@ -95,7 +113,7 @@ export async function createProductionWorkspace(config: {
         const selected = request.headers.get("x-organization-id");
         if (selected && selected !== ctx.organization.id)
           throw new DomainError("NOT_FOUND", "İşletme bulunamadı.", 404);
-        const body = ["GET", "HEAD"].includes(method)
+        const body = ["GET", "HEAD"].includes(method) || method === "PUT" && terrainUpload.test(path)
           ? {}
           : z.record(z.string(), z.unknown()).parse(await request.json());
         // Existing session authentication remains the sole authority for this adapter.
@@ -123,6 +141,8 @@ export async function createProductionWorkspace(config: {
             onboardingRequired: false,
             capabilities: {
               customAnalysis: false,
+              claims: true,
+              waterBalance: true,
               workspaceMode: "existing-account",
               reportDailyLimit: 10,
             },
@@ -179,19 +199,34 @@ export async function createProductionWorkspace(config: {
         }
         if (path === "/api/v1/observations/search" && method === "POST")
           return Response.json(await searchObservations(store.db, ctx, body));
+        const evidence = path.match(/^\/api\/v1\/fields\/([a-f0-9]{32})\/evidence-bundle$/);
+        if (evidence && method === "GET" && sourceBundle)
+          return Response.json(await extendedEvidenceBundle(store.db, ctx, evidence[1]!, async (_, fieldId) => {
+            const bundle = await sourceBundle(actor.id, fieldId);
+            await publishProjectedClaims(store.db, ctx.organization.id, fieldId);
+            return bundle;
+          }), { headers: { "Cache-Control": "private, no-store" } });
         const input = {
           db: store.db,
           context: ctx,
           body,
-          options,
+          options: { ...options, parcelForecast: sourceForecast && ((fieldId: string) => sourceForecast(actor.id, fieldId)) },
           request,
           url,
           path,
           method,
         };
-        for (const handler of [recordRoutes, reportRoutes, assistantRoutes]) {
+        if (path.startsWith("/api/v1/terra-brain/") && terraEnabled(ctx.organization.id, ctx.actor.guest)) await prepareTerraPilot(store);
+        for (const handler of [recordRoutes, reportRoutes, assistantRoutes, intelligenceRoutes, simulationRoutes, terraRoutes, terrainRoutes, plantRoutes]) {
           const response = await handler(input);
           if (response) {
+            if (process.env.AGROMAX_TERRA_BRAIN_SERVERLESS === "true" && terraEnabled(ctx.organization.id, ctx.actor.guest) && path.startsWith("/api/v1/terra-brain/") && response.ok) {
+              const result = await response.clone().json();
+              if (result.job && ["queued", "running"].includes(result.job.state)) {
+                const work = dispatchTerraPilot(store, ctx.organization.id, result.job.id);
+                if (config.background) config.background(work); else await work;
+              }
+            }
             if (path.endsWith("/confirm") && response.ok) {
               const decision = await response.clone().json();
               if (

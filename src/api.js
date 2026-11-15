@@ -1,3 +1,4 @@
+import {workspaceSync,notifyWorkspaceChange} from './sync/sync-hub';
 export class ApiError extends Error {
   constructor(message, status, code = undefined, details = undefined) {
     super(message);
@@ -10,9 +11,53 @@ export class ApiError extends Error {
 let organizationId = "";
 export function setOrganizationId(value) {
   organizationId = value || "";
+  workspaceSync.setScope(organizationId);
+}
+export async function apiBinary(path, { signal, body, method = "GET", headers = {} } = {}) {
+  return (await apiBinaryResponse(path, { signal, body, method, headers })).blob();
+}
+export async function apiBinaryResponse(path, { signal, body, method = "GET", headers = {} } = {}) {
+  const response = await fetch("/api/" + path, {
+    method, body, signal,
+    headers: { ...headers, ...(organizationId ? { "X-Organization-ID": organizationId } : {}) },
+  });
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}));
+    throw new ApiError(error.error || "Dosya isteği tamamlanamadı.", response.status, error.code);
+  }
+  return response;
+}
+export async function fetchAnalysisImage(fieldId, { date, layer, analysisId, signal }) {
+  const response = await fetch("/api/records/" + encodeURIComponent(fieldId) + "/image", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...(organizationId ? { "X-Organization-ID": organizationId } : {}),
+    },
+    body: JSON.stringify({ date, layer, analysisId }),
+    signal,
+  });
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}));
+    throw new ApiError(error.error || "Uydu katmanı alınamadı.", response.status);
+  }
+  const blob = await response.blob();
+  signal?.throwIfAborted();
+  const bounds = JSON.parse(response.headers.get("X-Image-Bounds"));
+  if (!Array.isArray(bounds) || bounds.length !== 4 || !bounds.every(Number.isFinite))
+    throw new ApiError("Uydu katmanının sınırları doğrulanamadı.", 502);
+  return {
+    bounds, date, layer,
+    legend: JSON.parse(decodeURIComponent(response.headers.get("X-Image-Legend") || "null")),
+    validPixels: Number(response.headers.get("X-Valid-Pixels")),
+    totalPixels: Number(response.headers.get("X-Total-Pixels")),
+    interval: JSON.parse(response.headers.get("X-Image-Interval") || "null"),
+    url: URL.createObjectURL(blob),
+  };
 }
 /** @param {string} path @param {any} [body] @param {string} [method] @param {{ signal?: AbortSignal, headers?: Record<string,string> }} [options] */
 export async function api(path, body, method, { signal, headers = {} } = {}) {
+  const requestScope=workspaceSync.scope;
   const r = await fetch("/api/" + path, {
     method: method || (body ? "POST" : "GET"),
     headers: {
@@ -37,6 +82,8 @@ export async function api(path, body, method, { signal, headers = {} } = {}) {
       data.code,
       data.details,
     );
+  const verb=method || (body?'POST':'GET');
+  if(!['GET','HEAD'].includes(verb.toUpperCase()) && !/assistant\/(answers|facts)|places\/search|\/image$/.test(path))notifyWorkspaceChange(requestScope);
   return data;
 }
 
@@ -59,6 +106,7 @@ function pause(signal) {
 }
 /** @param {string} fieldId @param {{signal?:AbortSignal,onJob?:(job:any)=>void,range?:{start:string,split:string,end:string}}} [options] */
 export async function requestAnalysis(fieldId, { signal, onJob, range } = {}) {
+  const requestScope = workspaceSync.scope;
   const result = await api(
     `records/${fieldId}/analysis`,
     range ? { range } : {},
@@ -85,5 +133,6 @@ export async function requestAnalysis(fieldId, { signal, onJob, range } = {}) {
           : "Analiz tamamlanamadı."),
       422,
     );
+  notifyWorkspaceChange(requestScope);
   return { analysis: job.analysis, status: result.status, job };
 }

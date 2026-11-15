@@ -1,4 +1,4 @@
-import { and, eq, desc, isNull } from "drizzle-orm";
+import { and, eq, desc, isNull, gte, count, sql } from "drizzle-orm";
 import { z } from "zod";
 import { ownField } from "../records/service";
 import type { Context } from "../organizations/service";
@@ -20,7 +20,10 @@ import { selectionSchema } from "./model";
 import { createReport } from "../reports/service";
 import { reserveUsage, settleUsage } from "../usage/service";
 import { geometryHash } from "../../server/analysis-jobs.js";
-import { fieldClaims } from "../intelligence/claims";
+import { fieldClaims, publishProjectedClaims } from "../intelligence/claims";
+import { scopedWorkspaceFiles } from "../records/workspace-files";
+import { sensorMetrics } from "../../shared/field-observations.js";
+import type { RuntimeOptions } from "../core/api";
 
 export async function fieldFacts(
   db: CommercialDb,
@@ -47,6 +50,13 @@ export async function fieldFacts(
       kind: field.geometry ? "calculated" : "user_statement",
       observedAt: null,
       geometryVersion: geometryHash(field.geometry),
+    });
+  const version = geometryHash(field.geometry);
+  if (field.crop || field.sowingDate)
+    facts.push({
+      id: "field-crop", source: `record:${field.id}`, kind: "user_statement",
+      text: `${t("Ürün ve ekim", "Crop and sowing")}: ${field.crop || t("Ürün kaydı yok", "No crop recorded")} · ${field.sowingDate || t("Ekim tarihi yok", "No sowing date")}`,
+      observedAt: field.sowingDate || null, geometryVersion: version,
     });
   const records = await db
     .select()
@@ -99,7 +109,7 @@ export async function fieldFacts(
     .where(eq(farmAnalyses.fieldId, fieldId));
   if (cached && cached.geometryHash === geometryHash(field.geometry)) {
     const analysis = JSON.parse(cached.body);
-    for (const metric of ["NDVI", "NDMI", "NDWI", "NDRE"]) {
+    for (const metric of ["NDVI", "NDMI", "NDWI", "NDRE", "EVI", "WDRVI"]) {
       const v = analysis.comparison?.[metric];
       if (
         typeof v?.current?.mean === "number" &&
@@ -115,16 +125,69 @@ export async function fieldFacts(
           geometryVersion: cached.geometryHash,
         });
     }
+    for (const [kind, source] of Object.entries(analysis.report?.supplementary || {})) {
+      const measurement = z.object({ source: z.string(), date: z.string(), sceneId: z.string(),
+        metrics: z.record(z.string(), z.object({ mean: z.number(), unit: z.string() })) }).safeParse(source);
+      if (!measurement.success) continue;
+      const value = measurement.data;
+      facts.push({
+        id: "satellite-" + kind,
+        text: Object.entries(value.metrics).map(([name, stat]) => name + " " + stat.mean.toFixed(3) + " " + stat.unit).join(" · "),
+        source: value.source + " · " + value.sceneId,
+        kind: "calculated", observedAt: value.date, geometryVersion: cached.geometryHash,
+      });
+    }
   }
-  const version = geometryHash(field.geometry);
-  const claims = ctx.actor.authentication === "legacy-session" ? [] :
-    await fieldClaims(db, ctx.organization.id, fieldId, 12);
+  const taskRows = await db.select({id:farmRecords.id,body:farmRecords.body}).from(farmRecords)
+    .where(and(eq(farmRecords.organizationId,ctx.organization.id),eq(farmRecords.kind,"task"),
+      sql`${farmRecords.body}::jsonb->>'fieldId' = ${fieldId}`)).limit(30);
+  for (const row of taskRows) {
+    const task=JSON.parse(row.body);
+    if (typeof task.name !== "string") continue;
+    facts.push({id:"task-"+row.id,text:`${t("Görev","Task")}: ${task.name} · ${task.done?t("Tamamlandı","Completed"):t("Bekliyor","Pending")}`,
+      source:"record:"+row.id,kind:"user_statement",observedAt:task.date||null,geometryVersion:version});
+  }
+  const run=records.find(row=>row.kind==="water_balance"&&row.data.geometryVersion===version);
+  if(run) {
+    const result=z.object({scenarios:z.array(z.object({name:z.string(),stressDays:z.number(),volumeM3:z.number()}))}).safeParse(run.data.result);
+    if(result.success) facts.push({id:"model-"+run.id,text:`${t("Pilot su dengesi modeli","Pilot water balance model")}: ${result.data.scenarios.map(plan=>`${plan.name} · ${plan.stressDays} ${t("stres günü","stress days")} · ${plan.volumeM3.toFixed(1)} m³`).join(" / ")}`,
+      source:`record:${run.id}:v${run.version}`,kind:"calculated",observedAt:null,geometryVersion:version});
+  }
+  const files = await scopedWorkspaceFiles(db, ctx, fieldId, version);
+  for (const kind of ["scenario", "investigation", "prescription", "observation", "flight_plan", "drone", "laboratory_run", "architect_project"]) {
+    for (const file of files.filter(file => file.kind === kind).slice(0, 3)) {
+      const p = file.payload;
+      const reading = p.measurement || p.sensor;
+      const measurement = reading ? ` · ${reading.value} ${sensorMetrics[reading.metric as keyof typeof sensorMetrics]?.unit || ""}` : "";
+      const text = kind === 'architect_project'
+        ? `${t('Architect projesi','Architect project')}: ${file.name} · ${p.metric} · ${p.primary?.date || t('analiz seçilmedi','no analysis selected')} · ${p.references.length} ${t('bağlı kayıt','linked records')}`
+        : kind === 'laboratory_run'
+        ? `${t('Temsili laboratuvar çalışması','Simulated laboratory run')}: ${file.name} · ${p.elapsedSeconds} sn · ${p.waypointCount} nokta · ${p.distanceM} m · ${t('gerçek ölçüm veya fiziksel uçuş değildir','not a measurement or physical flight')}`
+        : kind === 'flight_plan'
+        ? `${t('Uçuş planı','Flight plan')}: ${file.name} · ${p.firmware} · ${p.altitude} m ${t('kalkışa göre','relative to home')} · ${t('fiziksel cihaz doğrulanmadı; pompa komutu yok','hardware unverified; no pump commands')}`
+        : kind === 'drone' ? `${t('Cihaz profili','Device profile')}: ${file.name} · ${p.vendor} ${p.model} · ${p.notes}`
+        : file.calculation
+        ? `${t("Maliyet senaryosu", "Cost scenario")}: ${file.name} · ${file.calculation.totalMinor / 100} ${file.calculation.currency}`
+        : kind === "prescription"
+          ? `${t("Reçete taslağı", "Prescription draft")}: ${file.name} · ${p.rate} ${p.unit} · ${t("uzman onayı yok", "no expert approval")}`
+          : kind === "investigation"
+            ? `${t("Saha incelemesi", "Field investigation")}: ${file.name} · ${p.region}${measurement}${p.result ? " · " + p.result.slice(0, 350) : ""}`
+            : `${t("Saha gözlemi", "Field observation")}: ${file.name}${measurement} · ${p.notes.slice(0, 350)}`;
+      facts.push({
+        id: `workspace-${file.id}`, text, source: `record:${file.id}:v${file.version}`,
+        kind: file.calculation ? "calculated" : "user_statement",
+        observedAt: p.observedAt || p.visitedAt || null, geometryVersion: version,
+      });
+    }
+  }
+  if (ctx.actor.authentication === "legacy-session") await publishProjectedClaims(db, ctx.organization.id, fieldId);
+  const claims = await fieldClaims(db, ctx.organization.id, fieldId, 12);
   for (const claim of claims) {
     if (claim.geometryVersion !== version) continue;
     const evidence = claim.evidence;
     facts.push({
       id: `claim-${claim.id}`,
-      text: `${claim.metric}: ${t("gözlenen dönem farkı", "observed period change")} ${evidence.delta.toFixed(4)} · ${evidence.range.from.slice(0, 10)} – ${evidence.range.to.slice(0, 10)}`,
+      text: `${claim.metric}: ${claim.evidence.verification==='simulation' ? t("DEMO dönem farkı", "DEMO period change") : t("gözlenen dönem farkı", "observed period change")} ${evidence.delta.toFixed(4)} · ${evidence.range.from.slice(0, 10)} – ${evidence.range.to.slice(0, 10)}`,
       source: `claim:${claim.id} · analysis:${claim.analysisId}`,
       kind: "calculated",
       observedAt: evidence.range.to,
@@ -134,6 +197,37 @@ export async function fieldFacts(
   }
   return facts;
 }
+const conversation = z.array(z.object({
+  question: z.string().max(1000), answer: z.string().max(1800),
+})).max(4).optional();
+
+export async function answerHelp(db: CommercialDb, ctx: Context, input: unknown, model?: ModelAdapter) {
+  const data = z.object({
+    question: z.string().trim().min(1).max(1000),
+    locale: z.enum(["tr", "en"]).default("tr"),
+    consent: z.literal(true), conversation,
+  }).strict().parse(input);
+  requirePermission(ctx, "read");
+  if (!model) throw new DomainError("MODEL_UNAVAILABLE", "Filiz şu anda kullanılamıyor.", 503);
+  await db.transaction(async tx => {
+    await tx.select({ id: organizations.id }).from(organizations)
+      .where(eq(organizations.id, ctx.organization.id)).for("update");
+    const [used] = await tx.select({ total: count() }).from(auditLog).where(and(
+      eq(auditLog.organizationId, ctx.organization.id), eq(auditLog.action, "assistant.help"),
+      gte(auditLog.createdAt, new Date(Date.now() - 86400000)),
+    ));
+    if ((used?.total ?? 0) >= 12) throw new DomainError("HELP_LIMIT", "Günlük genel sohbet sınırına ulaştın.", 429);
+    await tx.insert(auditLog).values({ id: uid(), organizationId: ctx.organization.id,
+      actorId: ctx.actor.id, action: "assistant.help" });
+  });
+  try {
+    const response = await model({ ...data, facts: [] });
+    return { introduction: response.selection.reply || (data.locale === "tr" ? "Sorunu biraz daha açabilir misin?" : "Could you tell me a bit more?"), facts: [] };
+  } catch {
+    throw new DomainError("MODEL_REQUEST_FAILED", "Filiz yanıt veremedi. Biraz sonra tekrar dene.", 502);
+  }
+}
+
 export async function answerQuestion(
   db: CommercialDb,
   ctx: Context,
@@ -141,6 +235,7 @@ export async function answerQuestion(
   key: string,
   model: ModelAdapter | undefined,
   enforceQuota: boolean,
+  parcelForecast?: RuntimeOptions["parcelForecast"],
 ) {
   const data = z
     .object({
@@ -148,6 +243,7 @@ export async function answerQuestion(
       fieldId: identifier,
       locale: z.enum(["tr", "en"]).default("tr"),
       consent: z.literal(true),
+      conversation,
     })
     .strict()
     .parse(input);
@@ -161,6 +257,27 @@ export async function answerQuestion(
     );
   const facts = await fieldFacts(db, ctx, data.fieldId, data.locale),
     id = uid();
+  if (parcelForecast && /(?:hava|yağış|sıcaklık|rüzg[aâ]r|don|meteoroloji|weather|rain|temperature|wind|frost)/iu.test(data.question)) {
+    try {
+      const forecast = await parcelForecast(data.fieldId);
+      const next = forecast.points.find(point => Date.parse(point.time) >= Date.now() &&
+        Number.isFinite(point.values.air_temperature));
+      if (next) {
+        const units = [["air_temperature", "°C"], ["relative_humidity", "%"], ["wind_speed", "m/s"]] as const;
+        const values = units.flatMap(([metric, unit]) =>
+          Number.isFinite(next.values[metric]) ? [`${metric}: ${next.values[metric]} ${unit}`] : []);
+        const rain = next.periods.find(period => Number.isFinite(period.values.precipitation_amount));
+        if (rain) values.push(`precipitation_amount (${rain.hours} h): ${rain.values.precipitation_amount} mm`);
+        facts.push({
+          id: "parcel-weather", kind: "forecast", source: forecast.source,
+          text: `${data.locale === "tr" ? "Parsel için model tahmini" : "Parcel model forecast"} · ${next.time} · ${values.join(" · ")}`,
+          observedAt: next.time, methodVersion: forecast.method,
+        });
+      }
+    } catch {
+      // The parcel's other sources remain available when forecast retrieval fails.
+    }
+  }
   const request = await db.transaction(async (tx) => {
     await tx
       .select({ id: organizations.id })
@@ -214,7 +331,16 @@ export async function answerQuestion(
       .returning();
     return row!;
   });
-  if (request.answer) return request.answer;
+  if (request.answer) {
+    const cited = Array.isArray(request.answer.facts) ? request.answer.facts as Fact[] : [];
+    if (cited.some(previous => !facts.some(current =>
+      current.id === previous.id && current.source === previous.source &&
+      current.geometryVersion === previous.geometryVersion && current.text === previous.text
+    ))) throw new DomainError(
+      "SOURCES_CHANGED", "Bu yanıtın kaynakları değişti. Soruyu yeniden gönderin.", 409,
+    );
+    return request.answer;
+  }
   if (request.id !== id)
     throw new DomainError(
       "REQUEST_PENDING",
@@ -226,6 +352,7 @@ export async function answerQuestion(
       question: data.question,
       facts,
       locale: data.locale,
+      conversation: data.conversation,
     });
     const selection = selectionSchema.parse(response.selection);
     if (selection.factIds.some((id) => !facts.some((fact) => fact.id === id)))
@@ -238,7 +365,8 @@ export async function answerQuestion(
     const answer = {
       model: response.model,
       topic: selection.topic,
-      introduction:
+      introduction: selection.reply ||
+        (
         selection.topic === "agronomy"
           ? t(
               "Bu soru için doğrulanmış yöntem, ürün/bölge ve yeterli saha girdileri gerekir. Mevcut kayıtlarını aşağıda inceleyebilirsin.",
@@ -252,7 +380,7 @@ export async function answerQuestion(
             : t(
                 "Seçili parselin kaynaklı kayıtları:",
                 "Sourced records for the selected parcel:",
-              ),
+              )),
       facts: selection.factIds.map((id) => facts.find((f) => f.id === id)!),
       suggestedAction: selection.suggestedAction,
       limitations: t(

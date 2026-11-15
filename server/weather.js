@@ -239,6 +239,21 @@ export async function createWeatherService(
           "Meteoroloji için önce haritadan parsel sınırını çizin.",
           422,
         );
+      if (field.demo === true && field.demoVersion === 1) {
+        const instant = now();
+        const point = weatherPoint(field.geometry);
+        const updatedAt = new Date(instant).toISOString();
+        const points = Array.from({length:49}, (_, index) => {
+          const start = (Math.floor(instant / 3600000) + index + 1) * 3600000;
+          const time = new Date(start).toISOString();
+          return {time, values:{air_temperature:12+4*Math.sin(index*Math.PI/12),wind_speed:3+Math.cos(index/4),relative_humidity:66+12*Math.cos(index/4)},
+            periods:[1,6,12].map(hours=>({hours,from:time,to:new Date(start+hours*3600000).toISOString(),symbol:'partlycloudy_day',values:{precipitation_amount:index%7===0?0.8:0}}))};
+        });
+        return {fieldId, fieldName:field.name, demo:true, source:'Temsili hava', type:'forecast',
+          method:'demo-weather-v1', point, queryPoint:point, pointMethod:'Sentetik senaryo', modelElevationM:null,
+          updatedAt, fetchedAt:updatedAt, checkedAt:updatedAt,
+          units:{air_temperature:'celsius',wind_speed:'m/s',relative_humidity:'%',precipitation_amount:'mm'},points};
+      }
       const point = weatherPoint(field.geometry),
         key = `${point.lat},${point.lon}`;
       if (!pending.has(key))

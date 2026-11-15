@@ -1,11 +1,12 @@
 import { Pool } from "@neondatabase/serverless";
+import pg from "pg";
+import { postgresTls } from "./postgres-tls.js";
 
 // SQL and values always travel separately. Application SQL uses ? placeholders.
 function postgresSql(sql) {
   let index = 0;
   return sql.replace(/\?/g, () => `$${++index}`);
 }
-
 function postgresAdapter(client) {
   return {
     dialect: "postgres",
@@ -23,10 +24,11 @@ function postgresAdapter(client) {
     },
   };
 }
-
 export function postgresDatabase(connectionString) {
-  const pool = new Pool({
+  const PoolConstructor = process.env.AGROMAX_POSTGRES_DRIVER === "pg" ? pg.Pool : Pool;
+  const pool = new PoolConstructor({
     connectionString,
+    ...(PoolConstructor === pg.Pool ? { ssl: postgresTls() } : {}),
     max: 5,
     idleTimeoutMillis: 10000,
     connectionTimeoutMillis: 15000,
@@ -99,9 +101,17 @@ export function sqliteDatabase(raw) {
 export async function openDatabase() {
   if (process.env.DATABASE_URL)
     return postgresDatabase(process.env.DATABASE_URL);
-  if (process.env.VERCEL)
+  // A preview can be demonstrated before its managed Postgres instance is
+  // provisioned. This opt-in store lasts only for the function instance
+  // and must never be enabled for a production workspace.
+  const ephemeralPreview =
+    process.env.VERCEL &&
+    process.env.VERCEL_ENV === "preview" &&
+    process.env.AGROMAX_EPHEMERAL_PREVIEW_DATABASE === "true";
+  if (process.env.VERCEL && !ephemeralPreview)
     throw new Error("Persistent DATABASE_URL is required on Vercel.");
   const { DatabaseSync } = await import("node:sqlite");
+  if (ephemeralPreview) return sqliteDatabase(new DatabaseSync(":memory:"));
   const { mkdirSync } = await import("node:fs");
   mkdirSync("data", { recursive: true });
   const raw = new DatabaseSync("data/agromax.sqlite");
@@ -116,7 +126,9 @@ export async function initializeDatabase(db) {
     CREATE INDEX IF NOT EXISTS sessions_owner ON sessions(user_id);
     CREATE TABLE IF NOT EXISTS records(id TEXT PRIMARY KEY,user_id TEXT,kind TEXT,body TEXT);
     CREATE INDEX IF NOT EXISTS records_owner ON records(user_id);
+    CREATE TABLE IF NOT EXISTS field_revisions(field_id TEXT NOT NULL,user_id TEXT NOT NULL,version INTEGER NOT NULL,action TEXT NOT NULL,geometry_hash TEXT NOT NULL,changed_at TEXT,PRIMARY KEY(field_id,version));
     CREATE TABLE IF NOT EXISTS analyses(field_id TEXT PRIMARY KEY,geometry_hash TEXT,body TEXT);
     CREATE TABLE IF NOT EXISTS auth_limits(key TEXT PRIMARY KEY,attempts INTEGER NOT NULL,started_at BIGINT NOT NULL);
+    CREATE TABLE IF NOT EXISTS demo_templates(id TEXT PRIMARY KEY,body TEXT NOT NULL,enabled INTEGER NOT NULL DEFAULT 0);
   `);
 }

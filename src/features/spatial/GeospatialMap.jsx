@@ -1,0 +1,466 @@
+import { rasterImage } from "./raster-image";
+import { useEffect, useRef, useState } from "react";
+import { Map, ScaleControl, AttributionControl, setWorkerUrl } from "maplibre-gl";
+import "maplibre-gl/dist/maplibre-gl.css";
+import mapWorkerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?url";
+import { geometryBounds, pixelIndex, unproject, containsPoint } from "../../../shared/spatial";
+import { basemaps, defaultBasemap, mapboxEnabled } from "../fields/basemaps";
+import MapboxWordmark from "../fields/MapboxWordmark";
+import { colorFor } from "./colors";
+import { parcelFootprints } from "../../../shared/raster-footprints";
+import { terrainAttribution, terrainTiles } from "./terrain";
+
+setWorkerUrl(mapWorkerUrl);
+const parcel = { type: "geojson", data: { type: "FeatureCollection", features: [] } };
+const imagery = defaultBasemap;
+const archive = basemaps.archive;
+const collection = features => ({ type: "FeatureCollection", features });
+const noItems = [];
+const studioSky = {
+  "sky-color": "#7191a5", "horizon-color": "#d8e3dc", "fog-color": "#bdc9c1",
+  "sky-horizon-blend": 0.58, "horizon-fog-blend": 0.35, "fog-ground-blend": 0.18,
+};
+const style = {
+  version: 8,
+  sky: {
+    "sky-color": "#86aeb9", "horizon-color": "#e2e8dc", "fog-color": "#c6d1bc",
+    "sky-horizon-blend": 0.45, "horizon-fog-blend": 0.55, "fog-ground-blend": 0.22,
+  },
+  sources: {
+    imagery: { type: "raster", tiles: [imagery.url], tileSize: imagery.options.tileSize || 256,
+      maxzoom: imagery.options.maxNativeZoom + (imagery.options.zoomOffset || 0), attribution: imagery.options.attribution },
+    ...(mapboxEnabled && { "archive-imagery": { type: "raster", tiles: [archive.url], tileSize: 256,
+      maxzoom: archive.options.maxNativeZoom, attribution: archive.options.attribution } }),
+    "road-imagery": { type: "raster", tiles: [basemaps.road.url], tileSize: 256,
+      maxzoom: basemaps.road.options.maxNativeZoom, attribution: basemaps.road.options.attribution },
+    parcel,
+    neighbors: { type: "geojson", data: collection([]) },
+    zones: { type: "geojson", data: collection([]) },
+    review: { type: "geojson", data: { type: "FeatureCollection", features: [] } },
+    observations: { type: "geojson", data: { type: "FeatureCollection", features: [] } },
+    selection: { type: "geojson", data: { type: "FeatureCollection", features: [] } },
+  },
+  layers: [
+    { id: "ground", type: "background", paint: { "background-color": "#213d34" } },
+    { id: "imagery", type: "raster", source: "imagery", paint: { "raster-fade-duration": 0 } },
+    ...(mapboxEnabled ? [{ id: "archive-imagery", type: "raster", source: "archive-imagery", layout: { visibility: "none" } }] : []),
+    { id: "road-imagery", type: "raster", source: "road-imagery", layout: { visibility: "none" } },
+    { id: "parcel-fill", type: "fill", source: "parcel",
+      paint: { "fill-color": "#cbd99a", "fill-opacity": 0.12 } },
+    { id: "neighbor-fill", type: "fill", source: "neighbors",
+      paint: { "fill-color": "#b6db85", "fill-opacity": 0.23 } },
+    { id: "neighbor-line", type: "line", source: "neighbors",
+      paint: { "line-color": "#e7f5c0", "line-width": 1.7 } },
+    { id: "zone-fill", type: "fill", source: "zones",
+      paint: { "fill-color": ["get", "color"], "fill-opacity": 0.5 } },
+    { id: "zone-line", type: "line", source: "zones",
+      paint: { "line-color": "#fff5d4", "line-width": 1.3 } },
+    { id: "parcel-halo", type: "line", source: "parcel",
+      paint: { "line-color": "#22382a", "line-width": 4.5, "line-opacity": 0.75 } },
+    { id: "parcel-line", type: "line", source: "parcel",
+      paint: { "line-color": "#f7efcb", "line-width": 2.5 } },
+    { id: "review-line", type: "line", source: "review",
+      paint: { "line-color": "#ffd070", "line-width": 3.5, "line-dasharray": [2, 1] } },
+    { id: "observations", type: "circle", source: "observations",
+      paint: { "circle-radius": 7, "circle-color": "#ffc169", "circle-stroke-width": 2,
+        "circle-stroke-color": "#254037" } },
+    { id: "selection", type: "circle", source: "selection",
+      paint: { "circle-radius": 11, "circle-color": "transparent", "circle-stroke-width": 2,
+        "circle-stroke-color": "#ffde8c", "circle-pitch-alignment": "map" } },
+  ],
+};
+
+
+function useRasterImage(map, ready, id, raster, scale, geometry, opacity) {
+  useEffect(() => {
+    if (!ready || !raster || !scale) return;
+    const source = rasterImage(raster, geometry, scale);
+    map.addSource(id, { type: "image", ...source });
+    map.addLayer({ id, type: "raster", source: id,
+      paint: { "raster-resampling": "nearest", "raster-fade-duration": 0 } }, "parcel-line");
+    return () => {
+      if (map.getLayer(id)) map.removeLayer(id);
+      if (map.getSource(id)) map.removeSource(id);
+    };
+  }, [map, ready, id, raster, scale, geometry]);
+  useEffect(() => {
+    if (ready && map.getLayer(id)) map.setPaintProperty(id, "raster-opacity", opacity);
+  }, [map, ready, id, opacity, raster, scale, geometry]);
+}
+
+export default function GeospatialMap({ field, frame, command, boundary = true, raster, comparison, scale,
+  opacity = 0.85, blend = 0.5, mode = "surface", terrain = true, flat, exaggeration = 1, basemap = true, reduced,
+  highlight, markers = noItems, reviewGeometry, imagery, droneImagery, selection, onPoint, onError,
+  neighbors = noItems, zones = noItems, anchors = noItems, onAnchorPoints, onParcel, onHeading, mirror, summaryColors, onBasemap,
+  interaction = true, terrainDefinition, compact = false, studio = false, atlas = false, mission = false, quality = "auto", onCamera, onMapReady }) {
+  const element = useRef(null);
+  const handlers = useRef(null);
+  handlers.current = { onPoint, onError, onParcel, onHeading, onAnchorPoints, onCamera };
+  const current = useRef(null);
+  current.current = { field, raster, mode, markers, anchors, mirror, flat };
+  const [map, setMap] = useState(null);
+  const appliedCommand = useRef(null);
+  const [readyMap, setReadyMap] = useState(null);
+  const ready = !!map && readyMap === map;
+  const [tileMessage, setTileMessage] = useState("");
+  const [activeImagery, setActiveImagery] = useState("imagery");
+  const [loadedSource, setLoadedSource] = useState("");
+  const basemapName = activeImagery === "road-imagery" ? "road" : activeImagery === "archive-imagery" || !mapboxEnabled ? "archive" : "mapbox";
+  const basemapStatus = loadedSource === activeImagery ? basemapName : null;
+  const mapGeometry = studio ? null : JSON.stringify(field.geometry);
+
+  useEffect(() => {
+    if (!ready || !onMapReady) return;
+    onMapReady(map);
+    return () => onMapReady(null);
+  }, [ready, map, onMapReady]);
+
+  useEffect(() => { onBasemap?.(basemapStatus); }, [onBasemap, basemapStatus]);
+
+  useEffect(() => {
+    setReadyMap(null);
+    setActiveImagery("imagery");
+    setLoadedSource("");
+    setTileMessage("");
+    const { field: openingField, flat: openingFlat } = current.current;
+    const [west, south, east, north] = geometryBounds(openingField.geometry);
+    const padding = atlas && !compact ? {
+      top: 52, right: 52, bottom: 52, left: Math.round(element.current.clientWidth * 0.47),
+    } : compact ? 32 : 78;
+    let instance;
+    try {
+      instance = new Map({
+        container: element.current, style: { ...structuredClone(style), ...(studio && { sky: studioSky }) },
+        bounds: [[west, south], [east, north]], fitBoundsOptions: { padding, maxZoom: 18, bearing: -24 },
+        attributionControl: false, maxPitch: 78, maxZoom: 20,
+        pitch: openingFlat ? 0 : mission ? 65 : 53, bearing: -24,
+        maxTileCacheSize: compact ? 48 : 96, cooperativeGestures: true, renderWorldCopies: false,
+        ...(mission && {pixelRatio:Math.min(devicePixelRatio,compact?1.25:1.5)}),
+        ...((studio || mission) && !compact && { anisotropicFilterPitch: 35 }),
+      });
+    } catch {
+      handlers.current.onError?.();
+      return;
+    }
+    const fit = () => {
+      setReadyMap(instance);
+    };
+    instance.on("style.load", fit);
+    let visibleSource = "imagery";
+    const loadedImagery = new Set();
+    instance.on("sourcedata", event => {
+      if (event.sourceId !== visibleSource || event.tile?.state !== "loaded" || loadedImagery.has(visibleSource)) return;
+      loadedImagery.add(visibleSource);
+      setLoadedSource(visibleSource);
+    });
+    instance.on("idle", () => {
+      if (loadedImagery.has(visibleSource) || !instance.getLayer(visibleSource) ||
+        instance.getLayoutProperty(visibleSource, "visibility") === "none") return;
+      if (visibleSource !== "road-imagery") {
+        visibleSource = mapboxEnabled && visibleSource === "imagery" ? "archive-imagery" : "road-imagery";
+        setActiveImagery(visibleSource);
+        setTileMessage(visibleSource === "archive-imagery"
+          ? "Mapbox Satellite yüklenemedi. 2016 Sentinel-2 mozaiği açık."
+          : "Uydu altlığı yüklenemedi. Yol haritası açık.");
+      } else {
+        setTileMessage("Yol altlığı alınamadı. Parsel sınırları ve analiz katmanları açık.");
+      }
+    });
+    instance.on("error", event => {
+      if (event.sourceId === "terrain") {
+        instance.setTerrain(null);
+        setTileMessage("Yükseklik döşemeleri alınamadı. Düz yüzey gösteriliyor.");
+      }
+    });
+    instance.on("webglcontextlost", () => handlers.current.onError?.());
+    instance.on("rotate", () => handlers.current.onHeading?.(instance.getBearing()));
+    instance.on("moveend", () => {
+      const pitch = Math.round(instance.getPitch());
+      if (studio && instance.getLayer("ground"))
+        instance.setPaintProperty("ground", "background-opacity", pitch >= 68 ? 0 : 1);
+      handlers.current.onCamera?.(pitch);
+    });
+    instance.on("render", () => {
+      const { anchors, mirror } = current.current;
+      if (handlers.current.onAnchorPoints && element.current) {
+        const { clientWidth: width, clientHeight: height } = element.current;
+        const points = {};
+        for (const anchor of anchors) {
+          const { x, y } = instance.project(anchor.coordinate);
+          if (width && height && x > 0 && y > 0 && x < width && y < height) {
+            points[anchor.id] = [Math.round(x / width * 1000) / 10, Math.round(y / height * 1000) / 10];
+          }
+        }
+        handlers.current.onAnchorPoints(previous => {
+          const keys = Object.keys(points);
+          return keys.length === Object.keys(previous).length && keys.every(key =>
+            previous[key]?.[0] === points[key][0] && previous[key]?.[1] === points[key][1]) ? previous : points;
+        });
+      }
+      if (mirror?.current) {
+        const source = instance.getCanvas(), target = mirror.current;
+        if (target.width !== source.width) target.width = source.width;
+        if (target.height !== source.height) target.height = source.height;
+        const context = target.getContext("2d");
+        context?.clearRect(0, 0, target.width, target.height);
+        context?.drawImage(source, 0, 0);
+      }
+    });
+    instance.on("click", ({ lngLat, point }) => {
+      const feature = instance.getLayer("observations") &&
+        instance.queryRenderedFeatures(point, { layers: ["observations"] })[0];
+      const marker = feature && current.current.markers.find(item => item.id === feature.properties.id);
+      if (marker) { handlers.current.onPoint?.({ coordinate: marker.coordinate, marker }); return; }
+      if (current.current.mode === "columns" && instance.getLayer("index-columns")) {
+        const cell = instance.queryRenderedFeatures(point, { layers: ["index-columns"] })[0]?.properties;
+        if (cell) {
+          handlers.current.onPoint?.({ value: cell.value, coordinate: [cell.longitude, cell.latitude], squareMeters: cell.squareMeters });
+          return;
+        }
+      }
+      const coordinate = lngLat.toArray();
+      if (!containsPoint(current.current.field.geometry, coordinate)) {
+        const neighbor = instance.getLayer("neighbor-fill") && instance.queryRenderedFeatures(point, { layers: ["neighbor-fill"] })[0];
+        if (neighbor) handlers.current.onParcel?.(neighbor.properties.id);
+        return;
+      }
+      const active = current.current.raster;
+      const value = active ? active.values[pixelIndex(active, coordinate)] : null;
+      handlers.current.onPoint?.({ coordinate, value: Number.isFinite(value) ? value : null });
+    });
+    instance.addControl(new ScaleControl({ maxWidth: 90 }), "bottom-left");
+    instance.addControl(new AttributionControl({ compact: true }), "bottom-right");
+    setMap(instance);
+    return () => {
+      instance.remove();
+    };
+  }, [mapGeometry, compact, studio, atlas, mission]);
+
+  useEffect(()=>{
+    if (!map || !ready || !mission) return;
+    let cap=quality==="high"?2:quality==="economy"?.85:compact?1.25:1.5;
+    if (quality==="auto") {
+      const gl=map.getCanvas().getContext("webgl2"), extension=gl?.getExtension("WEBGL_debug_renderer_info");
+      const renderer=extension && gl.getParameter(extension.UNMASKED_RENDERER_WEBGL);
+      if (/swiftshader|llvmpipe|software rasterizer/i.test(renderer || "")) cap=.5;
+    }
+    map.setPixelRatio(Math.min(devicePixelRatio,cap));
+  },[map,ready,mission,compact,quality]);
+
+  useEffect(() => {
+    if (!ready) return;
+    const color = summaryColors?.[field.id];
+    map.getSource("parcel").setData({ type: "Feature", geometry: field.geometry, properties: { summaryColor: color || "" } });
+    map.setPaintProperty("parcel-fill", "fill-color", color || "#cbd99a");
+    map.setPaintProperty("parcel-fill", "fill-opacity", color ? 0.63 : mission ? 0.02 : 0.12);
+  }, [map, ready, field.geometry, field.id, summaryColors, mission]);
+
+  useEffect(() => { if (ready) map.triggerRepaint(); }, [map, ready, anchors, mirror]);
+  useEffect(() => {
+    if (!ready) return;
+    for (const key of ["dragPan", "dragRotate", "touchZoomRotate", "keyboard", "doubleClickZoom", "scrollZoom"])
+      map[key][interaction ? "enable" : "disable"]();
+  }, [map, ready, interaction]);
+
+  useEffect(() => {
+    if (!ready) return;
+    map.setMaxPitch(flat ? 0 : 78);
+    if (flat) {
+      map.stop();
+      map.jumpTo({ pitch: 0 });
+      handlers.current.onCamera?.(Math.round(map.getPitch()));
+    }
+  }, [map, ready, flat]);
+
+  useEffect(() => {
+    if (!ready || !command) return;
+    const viewKey = JSON.stringify([field.id, field.geometry, compact, flat, studio]);
+    if (appliedCommand.current?.map === map && appliedCommand.current.command === command &&
+        appliedCommand.current.viewKey === viewKey) return;
+    appliedCommand.current = { map, command, viewKey };
+    const duration = reduced ? 0 : 240;
+    if (command.type === "fit") {
+      const [west, south, east, north] = geometryBounds(field.geometry);
+      map.fitBounds([[west, south], [east, north]], { padding: compact ? 32 : 76, maxZoom: 18, bearing: -24, pitch: flat ? 0 : 53, duration });
+    } else if (command.type === "mission-overview") {
+      const southwest = frame.coordinate(-frame.width*.72,frame.depth*.72);
+      const northeast = frame.coordinate(frame.width*.72,-frame.depth*.72);
+      const framing=map.cameraForBounds([southwest,northeast],{
+        bearing:-26,maxZoom:18,padding:compact ? 36 : 70,absolutePadding:true,
+      });
+      if (framing) map.easeTo({...framing,pitch:compact?57:69,bearing:-26,
+        padding:{top:0,right:0,bottom:0,left:0},duration:command.instant || reduced?0:720});
+    } else if (command.type === "inspect") {
+      const [west, south, east, north] = geometryBounds(field.geometry);
+      if (studio) map.setPadding({ top: 0, right: 0, bottom: 0, left: 0 });
+      map.fitBounds([[west, south], [east, north]], {
+        padding: compact ? { top: 145, bottom: 215, left: 24, right: 56 } : { top: 105, bottom: 145, left: 68, right: 85 },
+        maxZoom: command.maxZoom, bearing: -18, pitch: compact ? 35 : 47, duration,
+      });
+    } else if (command.type === "landscape") {
+      const [west, south, east, north] = command.bounds;
+      const { clientWidth: width, clientHeight: height } = element.current;
+      const portrait = height > width;
+      const bearing = -24;
+      const framing = map.cameraForBounds([[west, south], [east, north]], {
+        bearing, maxZoom: command.maxZoom,
+        padding: compact ? { top: 24, bottom: 24, left: 38, right: 52 } : 72,
+        absolutePadding: true,
+      });
+      if (framing) map.easeTo({ center: framing.center, bearing, pitch: portrait ? 69 : 76,
+        zoom: Math.max(0, framing.zoom - (portrait ? 0.22 : 0.45)),
+        padding: { top: Math.round(height * (portrait ? 0.06 : 0.19)), bottom: 0, left: 0, right: 0 },
+        duration: command.instant ? 0 : reduced ? 0 : 560,
+      });
+    } else if (command.type === "north") map.easeTo({ bearing: 0, duration });
+    else if (command.type === "top") map.easeTo({ pitch: 0, bearing: 0,
+      ...(studio && { padding: { top: 0, right: 0, bottom: 0, left: 0 } }), duration });
+    else if (command.type === "tilt") map.easeTo({ pitch: 50, bearing: -22, duration });
+    else if (command.type === "slope") map.easeTo({ pitch: 70, bearing: map.getBearing(), duration });
+    else if (command.type === "focus") map.easeTo({ center: command.coordinate, duration });
+    else if (command.type === "region") {
+      const [west, south, east, north] = geometryBounds(command.geometry);
+      map.fitBounds([[west, south], [east, north]], { padding: 64, maxZoom: 19, bearing: map.getBearing(), duration });
+    }
+    else if (command.type === "in") map.zoomIn({ duration });
+    else if (command.type === "out") map.zoomOut({ duration });
+  }, [ready, map, command, frame, field.geometry, reduced, compact, flat, studio]);
+
+  useEffect(() => {
+    if (!ready) return;
+    for (const id of ["imagery", "archive-imagery", "road-imagery"]) {
+      if (map.getLayer(id)) map.setLayoutProperty(id, "visibility", basemap && activeImagery === id ? "visible" : "none");
+    }
+    for (const layer of ["parcel-fill", "parcel-halo", "parcel-line"])
+      map.setLayoutProperty(layer, "visibility", boundary ? "visible" : "none");
+    map.setPaintProperty("parcel-line", "line-color", highlight ? "#ffcf77" : "#f7efcb");
+  }, [map, ready, boundary, basemap, highlight, activeImagery]);
+  useEffect(() => {
+    if (!ready) return;
+    map.getSource("selection").setData({ type: "FeatureCollection", features: selection
+      ? [{ type: "Feature", properties: {}, geometry: { type: "Point", coordinates: selection } }] : [] });
+  }, [map, ready, selection]);
+  useEffect(() => {
+    if (ready) map.getSource("observations").setData({ type: "FeatureCollection", features: markers.map(marker => ({
+      type: "Feature", properties: { id: marker.id },
+      geometry: { type: "Point", coordinates: marker.coordinate },
+    })) });
+  }, [map, ready, markers]);
+  useEffect(() => {
+    if (ready) map.getSource("review").setData({ type: "FeatureCollection", features: reviewGeometry
+      ? [{ type: "Feature", geometry: reviewGeometry, properties: {} }] : [] });
+  }, [map, ready, reviewGeometry]);
+  useEffect(() => {
+    if (!ready) return;
+    map.getSource("neighbors").setData(collection(neighbors.filter(item => item.geometry && item.id !== field.id).map(item => ({
+      type: "Feature", geometry: item.geometry, properties: { id: item.id, summaryColor: summaryColors?.[item.id] || "" },
+    }))));
+    map.setPaintProperty("neighbor-fill", "fill-color",
+      ["case", ["!=", ["get", "summaryColor"], ""], ["to-color", ["get", "summaryColor"], "#b6db85"], "#b6db85"]);
+    map.setPaintProperty("neighbor-fill", "fill-opacity",
+      ["case", ["!=", ["get", "summaryColor"], ""], 0.63, summaryColors ? 0.06 : 0.23]);
+  }, [ready, map, neighbors, field.id, summaryColors]);
+  useEffect(() => {
+    if (!ready) return;
+    map.getSource("zones").setData(collection(zones.map((zone, index) => ({
+      type: "Feature", geometry: zone.geometry,
+      properties: { color: ["#abc66b", "#e8b77b", "#64a8aa", "#b0a1cd"][index % 4] },
+    }))));
+  }, [ready, map, zones]);
+
+  useEffect(() => {
+    if (!ready) return;
+    if (terrain) {
+      if (!map.getSource("terrain")) map.addSource("terrain", terrainDefinition || {
+        type: "raster-dem", tiles: [terrainTiles], encoding: "terrarium", tileSize: 256,
+        maxzoom: 13, attribution: terrainAttribution,
+      });
+      map.setTerrain({ source: "terrain", exaggeration });
+    }
+    return () => {
+      if (!map.getStyle()) return;
+      map.setTerrain(null);
+      if (map.getSource("terrain")) map.removeSource("terrain");
+    };
+  }, [map, ready, terrain, exaggeration, terrainDefinition]);
+
+  useEffect(() => {
+    if (!ready || !imagery?.bitmap.width) return;
+    const canvas = document.createElement("canvas");
+    canvas.width = imagery.bitmap.width;
+    canvas.height = imagery.bitmap.height;
+    canvas.getContext("2d").drawImage(imagery.bitmap, 0, 0);
+    const [west, south, east, north] = imagery.bounds;
+    const id = "dated-sentinel";
+    map.addSource(id, { type: "image", coordinates: [[west, north], [east, north], [east, south], [west, south]] });
+    map.getSource(id).updateImage({ image: canvas });
+    const firstOverlay = ["drone-imagery", "primary-raster", "parcel-fill"].find(layer => map.getLayer(layer));
+    map.addLayer({ id, source: id, type: "raster", paint: { "raster-fade-duration": 0 } }, firstOverlay);
+    return () => {
+      if (map.getLayer(id)) map.removeLayer(id);
+      if (map.getSource(id)) map.removeSource(id);
+    };
+  }, [map, ready, imagery]);
+  useEffect(() => {
+    if (!ready || !droneImagery?.bitmap.width) return;
+    const canvas = document.createElement("canvas");
+    canvas.width = droneImagery.bitmap.width;
+    canvas.height = droneImagery.bitmap.height;
+    const context = canvas.getContext("2d");
+    context.drawImage(droneImagery.bitmap, 0, 0);
+    const mask = document.createElement("canvas");
+    mask.width = Math.ceil(canvas.width / 4);
+    mask.height = Math.ceil(canvas.height / 4);
+    mask.getContext("2d").drawImage(droneImagery.bitmap, 0, 0, mask.width, mask.height);
+    context.globalCompositeOperation = "destination-in";
+    context.filter = "blur(" + Math.max(3, Math.min(9, Math.round(Math.min(canvas.width, canvas.height) / 96))) + "px)";
+    context.drawImage(mask, 0, 0, canvas.width, canvas.height);
+    const [west, south, east, north] = droneImagery.bounds;
+    const id = "drone-imagery";
+    map.addSource(id, { type: "image", coordinates: [[west, north], [east, north], [east, south], [west, south]].map(unproject) });
+    map.getSource(id).updateImage({ image: canvas });
+    const firstOverlay = ["primary-raster", "parcel-fill"].find(layer => map.getLayer(layer));
+    map.addLayer({ id, source: id, type: "raster", paint: { "raster-fade-duration": 140 } }, firstOverlay);
+    return () => {
+      if (map.getLayer(id)) map.removeLayer(id);
+      if (map.getSource(id)) map.removeSource(id);
+    };
+  }, [map, ready, droneImagery]);
+  useRasterImage(map, ready, "primary-raster", mode === "columns" ? null : raster, scale, field.geometry, opacity);
+  useRasterImage(map, ready, "earlier-raster", mode === "columns" ? null : comparison, scale, field.geometry, opacity * blend);
+
+  useEffect(() => {
+    if (!ready || mode !== "columns" || !raster || !scale) return;
+    const footprint = parcelFootprints(raster, field.geometry);
+    const height = Math.max(4, Math.min(40, frame.span * 0.13));
+    const features = raster.values.flatMap((value, index) => {
+      const cell = Number.isFinite(value) ? footprint(index) : null;
+      if (!cell) return [];
+      const fraction = scale.max === scale.min ? 0.5 : (value - scale.min) / (scale.max - scale.min);
+      return [{ type: "Feature", geometry: cell.geometry, properties: {
+        value, longitude: cell.coordinate[0], latitude: cell.coordinate[1], squareMeters: cell.squareMeters,
+        color: "rgb(" + colorFor(value, scale).join(",") + ")",
+        height: height * Math.max(0.04, Math.min(1, fraction)),
+      } }];
+    });
+    const id = "index-columns";
+    map.addSource(id, { type: "geojson", data: collection(features) });
+    map.addLayer({ id, source: id, type: "fill-extrusion", paint: {
+      "fill-extrusion-color": ["get", "color"], "fill-extrusion-height": ["get", "height"],
+    } });
+    return () => {
+      if (map.getLayer(id)) map.removeLayer(id);
+      if (map.getSource(id)) map.removeSource(id);
+    };
+  }, [ready, map, mode, raster, field.geometry, scale, frame.span]);
+
+  useEffect(() => {
+    if (ready && map.getLayer("index-columns")) map.setPaintProperty("index-columns", "fill-extrusion-opacity", opacity);
+  }, [map, ready, mode, raster, scale, opacity]);
+
+  return <div className="spatial-map" data-basemap={basemapName} data-basemap-loaded={!!basemapStatus} data-terrain={terrain ? terrainDefinition ? "drone" : "mapzen" : "flat"}>
+    <div ref={element} className="spatial-map-canvas" aria-label="Etkileşimli eğimli parsel haritası" />
+    <MapboxWordmark visible={basemap && basemapStatus === "mapbox"} />
+    {tileMessage && <p className="spatial-map-notice" role="status">{tileMessage}</p>}
+  </div>;
+}

@@ -1,6 +1,8 @@
-import { useEffect, useState, type FormEvent } from "react";
+import useWorkspaceSync from "../../sync/useWorkspaceSync";
+import { lazy, Suspense, useEffect, useState, type FormEvent } from "react";
 import { api } from "../../api";
 import type { runWaterBalance } from "../../../commercial/simulation/water-balance";
+const ScenarioRelief = lazy(() => import("../spatial/ScenarioRelief"));
 
 type SavedBalance = {
   run: {
@@ -8,11 +10,14 @@ type SavedBalance = {
     createdAt: string;
     data: {
       geometryVersion: string;
-      input: { weatherSource: string; soilSource: string };
+      areaM2?: number;
+      input: { weatherSource: string; soilSource: string; waterCostMinorPerM3?: number;
+        days?: { date: string; effectiveRainMm: number }[] };
       result: ReturnType<typeof runWaterBalance>;
     };
   } | null;
   geometryVersion: string;
+  history?: { id: string; createdAt: string }[];
 };
 const soilFields = [
   ["fieldCapacity", "Tarla kapasitesi (m³/m³)", "0.0001"],
@@ -37,18 +42,60 @@ function csv(text: FormDataEntryValue | null, columns: number) {
 }
 
 const fmt = (value: number) => value.toLocaleString("tr-TR", { maximumFractionDigits: 2 });
-export default function WaterBalance({ fieldId, canRun }: { fieldId: string; canRun: boolean }) {
+
+function DepletionChart({ result }: { result: ReturnType<typeof runWaterBalance> }) {
+  const days = result.scenarios[0]?.days;
+  if (!days?.length || result.capacityMm <= 0) return null;
+  const x = (index: number) => 56 + index * 514 / Math.max(1, days.length - 1);
+  const y = (mm: number) => 154 - mm / result.capacityMm * 132;
+  const threshold = y(result.readilyAvailableMm);
+  const lineStyles = ["", "7 4", "2 4"];
+
+  return (
+    <figure className="depletion-chart">
+      <figcaption>Günlük kök bölgesi su açığı <small>Model çıktısı · mm</small></figcaption>
+      <svg viewBox="0 0 590 180" role="img" aria-label={
+        `Sıfır ile ${fmt(result.capacityMm)} milimetre ölçeğinde günlük su açığı. ` +
+        `Stres eşiği ${fmt(result.readilyAvailableMm)} milimetre. ` +
+        result.scenarios.map(({ name, finalDepletionMm }) => `${name} son gün ${fmt(finalDepletionMm)} milimetre`).join(". ")
+      }>
+        {[0, result.capacityMm / 2, result.capacityMm].map((value) => (
+          <g key={value}><line x1="56" x2="570" y1={y(value)} y2={y(value)} />
+            <text x="48" y={y(value) + 4} textAnchor="end">{fmt(value)}</text></g>
+        ))}
+        <line className="depletion-threshold" x1="56" x2="570" y1={threshold} y2={threshold} />
+        {result.scenarios.map(({ name, days: series }, index) => (
+          <polyline key={name} className="depletion-series" data-series={index % lineStyles.length}
+            strokeDasharray={lineStyles[index % lineStyles.length]}
+            points={series.map((day, dayIndex) => `${x(dayIndex).toFixed(1)},${y(day.depletionMm).toFixed(1)}`).join(" ")} />
+        ))}
+        <text x="56" y="173">{days[0].date}</text>
+        <text x="570" y="173" textAnchor="end">{days.at(-1)?.date}</text>
+      </svg>
+      <ul aria-label="Grafik açıklaması">
+        {result.scenarios.map(({ name }, index) => <li key={name}><span data-series={index % lineStyles.length} />{name}</li>)}
+        <li><span className="depletion-threshold" />Stres eşiği · {fmt(result.readilyAvailableMm)} mm</li>
+      </ul>
+    </figure>
+  );
+}
+
+export default function WaterBalance({ fieldId, canRun, spatialField, sowingDate, onSaved }: {
+  fieldId: string; canRun: boolean; spatialField?: { id: string; geometry: unknown } | null; sowingDate?: string; onSaved?: () => void;
+}) {
+  const syncRevision=useWorkspaceSync();
   const path = `v1/fields/${fieldId}/water-balance`;
   const [saved, setSaved] = useState<SavedBalance | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [activeRun, setActiveRun] = useState("");
   useEffect(() => {
     const controller = new AbortController();
-    api(path, undefined, "GET", { signal: controller.signal })
+    api(path + (activeRun ? "?run=" + encodeURIComponent(activeRun) : ""), undefined, "GET", { signal: controller.signal })
       .then(setSaved)
       .catch((e) => { if (!controller.signal.aborted) setError(e.message); });
     return () => controller.abort();
-  }, [path]);
+  }, [path, activeRun, syncRevision]);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -64,7 +111,7 @@ export default function WaterBalance({ fieldId, canRun }: { fieldId: string; can
       const schedule = (key: string) => csv(values.get(key), 2).map(([date, depth]) => ({
         date, grossMm: Number(depth),
       }));
-      setSaved(await api(path, {
+      const calculated = await api(path, {
         scope: "trakya-winter-wheat",
         weatherSource: values.get("weatherSource"),
         soilSource: values.get("soilSource"),
@@ -84,7 +131,10 @@ export default function WaterBalance({ fieldId, canRun }: { fieldId: string; can
         waterCostMinorPerM3: Math.round(number("waterCost") * 100),
         maxVolumeM3: number("maxVolumeM3"),
         maxCostMinor: Math.round(number("maxCost") * 100),
-      }));
+      }) as SavedBalance;
+      setSaved(previous => ({ ...calculated, history: previous?.history }));
+      setActiveRun(calculated.run?.id ?? "");
+      onSaved?.();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Su dengesi hesaplanamadı.");
     } finally {
@@ -94,17 +144,22 @@ export default function WaterBalance({ fieldId, canRun }: { fieldId: string; can
 
   const run = saved?.run;
   const result = run?.data.result;
+  const showComparison = !!(run && result && result.scenarios.length >= 2 &&
+    spatialField && saved?.geometryVersion === run.data.geometryVersion);
   return (
     <section className="px-surface px-section business-workspace water-balance">
       <h2>Trakya kışlık buğdayı · Su dengesi pilotu</h2>
       <p>FAO-56 kök bölgesi modeli, sağladığınız verilerle iki sulama takvimini karşılaştırır. Çıktılar saha kalibrasyonu bekliyor.</p>
-      {canRun && <details>
+      {!saved && !error && <p role="status">Model çalışması yükleniyor…</p>}
+      {saved && !run && <p>Bu parsel için kayıtlı su dengesi çalışması yok.</p>}
+      <div className="water-balance-grid">
+      {canRun && <details className="water-balance-inputs">
         <summary>Yeni su dengesi çalıştır</summary>
         <form onSubmit={submit}>
           <div className="business-form-grid">
             <label>Meteoroloji kaynağı<input name="weatherSource" maxLength={160} required /></label>
             <label>Toprak verisi kaynağı<input name="soilSource" maxLength={160} required /></label>
-            <label>Ekim tarihi<input name="sowingDate" type="date" required /></label>
+            <label>Ekim tarihi<input name="sowingDate" type="date" defaultValue={sowingDate} required /></label>
             {soilFields.map(([key, label, step]) => (
               <label key={key}>{label}<input name={key} type="number" step={step} required /></label>
             ))}
@@ -124,11 +179,26 @@ export default function WaterBalance({ fieldId, canRun }: { fieldId: string; can
       </details>}
       {error && <p className="error" role="alert">{error}</p>}
       {run && result && (
-        <div>
-          <p role="status">Son çalışma · {run.createdAt.slice(0, 10)} · {result.methodVersion}</p>
+        <div className="water-balance-results">
+          {!!saved.history?.length && !!spatialField && <label className="water-run-picker">Kayıtlı model çalışması
+            <select value={saved.history.some(item => item.id === run.id) ? run.id : ""}
+              onChange={event => { setError(""); setActiveRun(event.target.value); }}>
+              {!saved.history.some(item => item.id === run.id) && <option value="">Önceki sınırın çalışması</option>}
+              {saved.history.map(item => <option key={item.id} value={item.id}>
+                {new Date(item.createdAt).toLocaleString("tr-TR", { dateStyle: "medium", timeStyle: "short" })} · {item.id.slice(0, 6)}
+              </option>)}
+            </select>
+          </label>}
+          <p role="status">Model çalışması · {run.createdAt.slice(0, 10)} · {result.methodVersion}</p>
           <p>{run.data.input.weatherSource} · {run.data.input.soilSource}</p>
           {saved.geometryVersion !== run.data.geometryVersion && <p>Bu çalışma önceki parsel sınırına aittir.</p>}
-          <div className="px-table-wrap">
+          {showComparison ? (
+            <Suspense fallback={<p role="status">3D karşılaştırma hazırlanıyor…</p>}>
+              <ScenarioRelief key={run.id} field={spatialField} geometryVersion={run.data.geometryVersion}
+                result={result} input={run.data.input} areaM2={run.data.areaM2} />
+            </Suspense>
+          ) : <DepletionChart key={run.id} result={result} />}
+          {!showComparison && <div className="px-table-wrap">
             <table>
               <thead><tr><th>Senaryo</th><th>Stres günü</th><th>Son açık (mm)</th><th>Su (m³)</th><th>Maliyet (₺)</th><th>Kısıt</th></tr></thead>
               <tbody>{result.scenarios.map((row) => <tr key={row.name}>
@@ -136,13 +206,14 @@ export default function WaterBalance({ fieldId, canRun }: { fieldId: string; can
                 <td>{fmt(row.volumeM3)}</td><td>{fmt(row.costMinor / 100)}</td><td>{row.feasible ? "Uygun" : "Aşıldı"}</td>
               </tr>)}</tbody>
             </table>
-          </div>
+          </div>}
           <p>ET₀ ±%10 duyarlılığı, son su açığı (mm): {result.scenarios.map((row) =>
             row.sensitivity ? `${row.name} ${fmt(row.sensitivity.minDepletionMm)}–${fmt(row.sensitivity.maxDepletionMm)}` : row.name).join(" · ")}</p>
           <p>{result.bestFeasible ? `Girilen takvimler arasında en az stres ve suyla: ${result.bestFeasible}.` : "Girilen takvimlerden hiçbiri su ve bütçe kısıtlarına uymuyor."}</p>
           <a href={result.methodSource} target="_blank" rel="noreferrer">FAO-56 yöntem kaynağı</a>
         </div>
       )}
+      </div>
     </section>
   );
 }

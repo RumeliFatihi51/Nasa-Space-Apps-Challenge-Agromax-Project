@@ -6,7 +6,8 @@
   "regions": ["fra1"],
   "functions": {
     "api/index.js": {
-      "maxDuration": 300
+      "maxDuration": 300,
+      "includeFiles": "{public/fonts/Manrope-Report.ttf,demo/AGROMAX_SUPABASE_DEMO.sql,commercial/db/migrations/0008_platform_history.sql,commercial/db/migrations/0009_terra_brain.sql}"
     }
   },
   "rewrites": [

@@ -1,11 +1,15 @@
-import { and, eq, isNull } from "drizzle-orm";
+import { and, eq, isNull, sql } from "drizzle-orm";
 import { z } from "zod";
+import { createHash, randomBytes } from "node:crypto";
+import { hashPassword } from "better-auth/crypto";
+import { guestEmail, isGuestEmail } from "../shared/guest.js";
 import type { Store } from "./db/store";
 import { createIdentity, type TransactionalMail } from "./auth/service";
 import { createCompatibility } from "./compat";
 import { DomainError, errorResponse } from "./core/errors";
 import {
   createOrganization,
+  uid,
   listOrganizations,
   resolveContext,
   requirePermission,
@@ -17,6 +21,8 @@ import {
   user,
   subscriptions,
   session as authSessions,
+  account as authAccounts,
+  rateLimit,
 } from "./db/schema";
 import { preferencesInput, identifier } from "../shared/contracts/commercial";
 import { readiness } from "./core/readiness";
@@ -35,6 +41,10 @@ import { assistantRoutes } from "./assistant/api";
 import { reportRoutes } from "./reports/api";
 import { recordRoutes } from "./records/api";
 import { simulationRoutes } from "./simulation/api";
+import { terraRoutes } from "./terra-brain/api";
+import { terrainRoutes } from "./terrain/api";
+import { plantRoutes } from "./plants/api";
+import { terrainUpload } from "../shared/terrain-upload.js";
 import { intelligenceRoutes } from "./intelligence/api";
 import { offlineRoutes } from "./records/offline";
 export async function createCommercialApplication(options: RuntimeOptions) {
@@ -55,6 +65,7 @@ export async function createCommercialApplication(options: RuntimeOptions) {
       name: session.user.name,
       email: session.user.email,
       emailVerified: session.user.emailVerified,
+      guest: isGuestEmail(session.user.email),
     };
   }
   async function readBody(request: Request): Promise<Record<string, unknown>> {
@@ -92,6 +103,11 @@ export async function createCommercialApplication(options: RuntimeOptions) {
         "E-posta servisi henüz yapılandırılmadı. Bu işlem şu anda kullanılamıyor.",
         503,
       );
+    if (path === "/api/auth/sign-up/email") {
+      const body = await request.clone().json().catch(() => null);
+      if (String(body?.email || "").trim().toLowerCase().endsWith("@guest.agromax.invalid"))
+        throw new DomainError("RESERVED_EMAIL", "Farklı bir e-posta adresi girin.");
+    }
     return identity.auth.handler(request);
   }
   return {
@@ -122,7 +138,32 @@ export async function createCommercialApplication(options: RuntimeOptions) {
             salesEnabled: false,
           });
         if (path.startsWith("/api/auth/")) return await authRequest(request);
-        const body = await readBody(request);
+        const body = method === "PUT" && terrainUpload.test(path) ? {} : await readBody(request);
+        if (path === "/api/guest" && method === "POST") {
+          const current = await identity.auth.api.getSession({ headers: request.headers });
+          if (current) return Response.json({ ...current.user, commercial: true, guest: isGuestEmail(current.user.email) });
+          const address = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
+          const key = "guest:" + createHash("sha256").update(address).digest("hex");
+          const now = Date.now(), expired = sql`${rateLimit.lastRequest} <= ${now - 600000}`;
+          const [allowed] = await db.insert(rateLimit).values({ id: uid(), key, count: 1, lastRequest: now }).onConflictDoUpdate({
+            target: rateLimit.key, set: { count: sql`case when ${expired} then 1 else ${rateLimit.count} + 1 end`, lastRequest: sql`case when ${expired} then ${now} else ${rateLimit.lastRequest} end` },
+            setWhere: sql`${expired} or ${rateLimit.count} < 12`,
+          }).returning({ id: rateLimit.id });
+          if (!allowed) throw new DomainError("GUEST_RATE_LIMIT", "Çok fazla yeni oturum açıldı. Birkaç dakika sonra tekrar dene.", 429);
+          const id = uid(), email = guestEmail(id), password = randomBytes(32).toString("hex");
+          const actor = { id, email, name: "Misafir", emailVerified: false, guest: true };
+          const hashed = await hashPassword(password);
+          await db.transaction(async tx => {
+            await tx.insert(user).values(actor);
+            await tx.insert(authAccounts).values({ id: uid(), userId: id, accountId: id, providerId: "credential", password: hashed });
+            await createOrganization(tx, actor, { name: "Misafir çalışma alanı" });
+          });
+          const signedIn = await identity.auth.api.signInEmail({
+            body: { email, password }, headers: request.headers, asResponse: true,
+          });
+          if (!signedIn.ok) throw new DomainError("GUEST_SIGN_IN_FAILED", "Misafir oturumu açılamadı.", 503);
+          return Response.json({ ...actor, commercial: true }, { status: 201, headers: signedIn.headers });
+        }
         if (
           ["/api/login", "/api/register", "/api/logout"].includes(path) &&
           method === "POST"
@@ -319,13 +360,13 @@ export async function createCommercialApplication(options: RuntimeOptions) {
           db,
           context,
           body,
-          options,
+          options: { ...options, parcelForecast: (fieldId: string) => legacy.forecast(context.organization.id, fieldId) },
           request,
           url,
           path,
           method,
         };
-        for (const handler of [assistantRoutes, reportRoutes, recordRoutes, simulationRoutes, intelligenceRoutes, offlineRoutes]) {
+        for (const handler of [assistantRoutes, reportRoutes, recordRoutes, simulationRoutes, terraRoutes, intelligenceRoutes, offlineRoutes, terrainRoutes, plantRoutes]) {
           const response = await handler(input);
           if (response) return response;
         }

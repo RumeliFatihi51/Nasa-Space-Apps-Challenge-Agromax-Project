@@ -1,26 +1,56 @@
-name: AgroMax Quality & CI Checks
-
+name: Agromax checks
 on:
   push:
-    branches: [main]
   pull_request:
-    branches: [main]
-
 permissions:
   contents: read
-
 jobs:
-  verify:
+  terra-postgres:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: agromax_test
+          POSTGRES_PASSWORD: isolated-ci
+          POSTGRES_DB: agromax_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd pg_isready --health-interval 3s
+          --health-timeout 3s --health-retries 15
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: 24
           cache: npm
       - run: npm ci
-      - run: npm run lint
+      - run: node --import tsx --test commercial/terra-brain/pilot.test.ts
+        env:
+          AGROMAX_POSTGRES_DRIVER: pg
+          AGROMAX_TERRA_TEST_DATABASE_URL: postgres://agromax_test:isolated-ci@127.0.0.1:5432/agromax_test
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - run: python3 -m unittest discover -s tools/flight-bridge -p test_control.py
+      - run: npm run test:commercial
       - run: npm run build
-      - name: Run unit & smoke tests
-        run: node --test server/*.test.js
+      - run: npm run build:commercial
+      - run: npx playwright install --with-deps chromium --only-shell
+      - run: npm run test:browser
+      - uses: actions/upload-artifact@v7
+        if: failure()
+        with:
+          name: browser-failure-evidence
+          path: data/browser-results/
+          retention-days: 7

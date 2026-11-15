@@ -1,13 +1,5 @@
-@font-face {
-  font-family: "Instrument Sans";
-  src: url("/fonts/instrument-sans.woff2") format("woff2");
-  font-style: normal;
-  font-weight: 400 700;
-  font-display: swap;
-}
-
 html.agromax-ui {
-  --ag-paper: #f2f1e8;
+  --ag-paper: #efecdf;
   --ag-surface: #fffdf7;
   --ag-ink: #243a2c;
   --ag-muted: #526253;
@@ -16,15 +8,195 @@ html.agromax-ui {
   --ag-primary: #315a43;
   --ag-primary-hover: #243a2c;
   --ag-lime: #d6dfbc;
-  --ag-display: "Instrument Sans", Manrope, system-ui, sans-serif;
+  --ag-display: var(--font-ui);
+  --cinema-forest: #13261c;
+  --cinema-cream: #f3efe2;
+  --cinema-ink: #202b23;
+  --cinema-border: #d7d2c0;
+  --cinema-fast: 160ms;
+  --cinema-ease: cubic-bezier(.18,.8,.3,1);
 }
 
-html.agromax-ui .studio-shell :is(.fw-page-heading, .studio-page-title, .analysis-heading, .atlas-dashboard-hero) :is(h1, h2) {
+html.agromax-ui .studio-shell .studio-page-title :is(h1, h2) {
   font-family: var(--ag-display);
   letter-spacing: -0.035em;
 }
 
-html.agromax-ui .studio-shell :is(.analysis-heading, .studio-page-title) {
+html.agromax-ui .cinematic-shell { --sidebar-width: clamp(225px, 15.6vw, 274px); }
+html.agromax-ui .cinematic-shell.sidebar-slim { --sidebar-width: 74px; }
+html.agromax-ui .cinematic-shell .studio-main {
+  flex: 0 0 calc(100% - var(--sidebar-width));
+  width: calc(100% - var(--sidebar-width));
+  margin: 0 0 0 var(--sidebar-width);
+  transition: none;
+}
+html.agromax-ui .cinematic-shell .studio-sidebar {
+  --sidebar-amber: #efc385;
+  background:
+    url("/visuals/sidebar-contours.svg") right top / 150px auto no-repeat,
+    linear-gradient(180deg, #0b1b16f0, #102019df 32%, #112019c7 55%, #17251a78 73%, #142218d6 87%, #101e17),
+    #14231a url("/visuals/agromax-landscape-editorial-v1.webp") 58% center / cover no-repeat;
+  color: #f4f1e5;
+  border-color: #6a60413d;
+  scrollbar-color: #8a8c70 transparent;
+  font-family: var(--ag-display);
+  gap: 9px;
+  padding: 22px 15px 13px;
+}
+.cinematic-shell .studio-brand img { display: block; max-width: 100%; height: auto; }
+html.agromax-ui .cinematic-shell .studio-brand-row { margin: 0 4px 20px; }
+html.agromax-ui .cinematic-shell :is(.studio-nav-link,.studio-sidebar-collapse,.studio-mobile-close,.studio-filiz,.platform-nav-group summary,.studio-user button) {
+  color: #f1efe4;
+}
+html.agromax-ui .cinematic-shell .studio-nav-link {
+  border-radius: 8px;
+  min-height: 44px;
+  background: transparent;
+}
+.cinematic-shell .studio-nav-link > span:not(.canopy-nav-icon) {
+  min-width: 0;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  text-align: start;
+}
+html.agromax-ui .cinematic-shell .studio-sidebar :is(button, summary):not(.is-active):hover { background-color: #ffffff12; }
+html.agromax-ui .cinematic-shell .studio-sidebar :is(button, summary):focus-visible { outline-color: var(--sidebar-amber); }
+.cinematic-shell .platform-nav-group { margin: 0; border: 0; }
+html.agromax-ui .cinematic-shell .platform-nav-group > summary {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 13px;
+  list-style: none;
+  cursor: pointer;
+  padding: 12px 14px;
+  min-height: 44px;
+  border-radius: 8px;
+  font-size: 13px;
+}
+.cinematic-shell .platform-nav-group > summary::-webkit-details-marker { display: none; }
+.cinematic-shell .platform-nav-group[open] > summary > svg:last-child { transform: rotate(90deg); }
+.cinematic-shell .platform-nav-group .studio-nav-link { min-height: 41px; font-size: 12px; }
+.cinematic-shell .platform-nav-group > summary > span { flex: 1; }
+.cinematic-shell .platform-nav-group[open] > summary { background: #ffffff0d; }
+.cinematic-shell .platform-nav-group[open] > summary > svg:first-child { color: var(--sidebar-amber); }
+.cinematic-shell .platform-nav-group > button { margin-inline-start: 12px; width: calc(100% - 12px); }
+html.agromax-ui .cinematic-shell .studio-filiz {
+  background: transparent;
+  border-color: transparent;
+  margin: 0;
+  padding: 6px 12px;
+  min-height: 44px;
+}
+html.agromax-ui .cinematic-shell .studio-sidebar :is(.studio-nav-link, .studio-filiz).is-active {
+  position: relative;
+  overflow: clip;
+  background: linear-gradient(105deg, #554830, #293a2a 74%);
+  box-shadow: inset 2px 0 var(--sidebar-amber), inset 0 0 0 1px #efc38532;
+  color: #fff7e5;
+}
+html.agromax-ui .cinematic-shell .studio-sidebar :is(.studio-nav-link, .studio-filiz).is-active > svg {
+  color: var(--sidebar-amber);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .cinematic-shell .studio-sidebar :is(.studio-nav-link, .studio-filiz).is-active::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background: linear-gradient(112deg, transparent 28%, #ffdc9a2b 50%, transparent 72%);
+    animation: sidebar-tab-light 480ms var(--cinema-ease) both;
+  }
+  @keyframes sidebar-tab-light {
+    from { transform: translateX(-100%); }
+    to { transform: translateX(100%); }
+  }
+}
+html.agromax-ui .cinematic-shell .studio-filiz :is(strong, span) { color: inherit; }
+.cinematic-shell .studio-filiz small { display: none; }
+.cinematic-shell .studio-filiz > span { background: transparent; width: 22px; height: 22px; }
+html.agromax-ui .cinematic-shell :is(.studio-workspace,.studio-user) { background: #142219c9; color: #f4f0df; border-color: #f0d6a229; }
+html.agromax-ui .cinematic-shell :is(.studio-workspace,.studio-user) :is(strong,small) { color: inherit; }
+html.agromax-ui .cinematic-shell .studio-workspace { margin-block: 2px; }
+.cinematic-sidebar-story {
+  min-height: 135px;
+  display: grid;
+  align-content: end;
+  gap: 10px;
+  padding: 34px 0 14px;
+  margin: auto 12px 0;
+  text-shadow: 0 1px 8px #101b12, 0 1px 3px #101b12;
+}
+.cinematic-sidebar-story::before {
+  content: "";
+  width: 42px;
+  height: 1px;
+  background: var(--sidebar-amber);
+}
+html.agromax-ui .cinematic-sidebar-story p {
+  font: italic 24px/1.05 var(--font-ui);
+  margin: 0;
+  color: #f6f0e0;
+}
+.cinematic-sidebar-story small { color: #eeeadd; font-size: 12px; }
+.cinematic-shell.sidebar-slim .cinematic-sidebar-story { display: none; }
+.cinematic-shell.sidebar-slim .platform-nav-group summary svg:last-child { display: none; }
+html.agromax-ui .cinematic-shell.studio-page-overview .studio-main { position: relative; background: var(--ag-paper); }
+html.agromax-ui .cinematic-shell.studio-page-overview .studio-topbar {
+  position: absolute;
+  inset: 0 0 auto;
+  z-index: 810;
+  height: 62px;
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+}
+html.agromax-ui .cinematic-shell.studio-page-overview .studio-breadcrumb > :not(.studio-mobile-toggle),
+.cinematic-shell.studio-page-overview .studio-today { display: none; }
+html.agromax-ui .cinematic-shell.studio-page-overview .studio-content { padding: 0; }
+.cinematic-shell.studio-page-overview .studio-page-footer { margin: 12px 20px 0; }
+html.agromax-ui .cinematic-shell.studio-page-overview :is(.studio-global-search,.studio-calendar-button,.business-organization-select) {
+  background: #f5efe4ed;
+  border-color: #e4dfcf;
+  color: #233024;
+  border-radius: 30px;
+}
+html.agromax-ui .cinematic-shell.studio-page-overview .studio-top-avatar { background: #31472f; color: white; }
+html.agromax-ui .cinematic-shell.studio-page-overview .studio-global-search { min-width: clamp(220px, 21vw, 375px); }
+.earth-loader {
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  background: radial-gradient(ellipse at center,#223c2c,#12241a 67%);
+  color: #f2efdf;
+}
+.earth-loader > * { grid-area: 1 / 1; }
+.earth-loader svg:not(.agromax-logo-mark) { width: min(75vw,420px); overflow: visible; fill: none; stroke: #a5bd8270; }
+.earth-loader svg path { stroke-dasharray: 800; animation: trace-earth 1s var(--cinema-ease) both; }
+.earth-loader > div { display: grid; justify-items: center; gap: 10px; }
+.earth-loader strong { font: 600 42px/1 var(--ag-display); }
+.earth-loader span { color: #c7d2bc; font-size: 13px; }
+@keyframes trace-earth { from { stroke-dashoffset: 800; } }
+
+@media (max-width: 1100px) {
+  html.agromax-ui .cinematic-shell { --sidebar-width: 210px; }
+}
+@media (min-width: 641px) and (max-width: 850px) {
+  html.agromax-ui .cinematic-shell { --sidebar-width: 74px; }
+  .cinematic-sidebar-story { display: none; }
+  .cinematic-shell .platform-nav-group summary svg:last-child { display: none; }
+}
+@media (max-width: 640px) {
+  html.agromax-ui :is(.cinematic-shell,.cinematic-shell.sidebar-slim) { --sidebar-width: 0px; }
+  html.agromax-ui .cinematic-shell.studio-page-overview .studio-global-search { min-width: 38px; }
+  html.agromax-ui .cinematic-shell.studio-page-overview .studio-mobile-toggle { color: #f7f3e7; }
+  .cinematic-sidebar-story { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .earth-loader svg path { animation: none; }
+}
+
+html.agromax-ui .studio-shell .studio-page-title {
   padding-block-end: 1rem;
   border-block-end: 1px solid var(--ag-line);
 }

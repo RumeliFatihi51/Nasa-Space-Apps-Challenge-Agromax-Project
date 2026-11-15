@@ -31,7 +31,8 @@ import {
   LoaderCircle,
 } from "lucide-react";
 import { validateGeometry } from "../../../shared/geometry";
-import { basemaps, labelsLayer } from "./basemaps";
+import { basemaps, defaultBasemap, mapboxEnabled, satelliteWithLabels } from "./basemaps";
+import MapboxWordmark from "./MapboxWordmark";
 import MapSearch from "./MapSearch";
 
 function geometries(group) {
@@ -60,7 +61,15 @@ export default function ParcelMap({
   height = 520,
   children,
   compact = false,
+  workbench = false,
   editSession = null,
+  activeFieldId = null,
+  animateImagery = false,
+  projectLayers = null,
+  onMapPoint,
+  onViewport,
+  sharedViewport,
+  mapId,
 }) {
   const element = useRef(),
     instance = useRef(),
@@ -71,20 +80,21 @@ export default function ParcelMap({
     position = useRef(0),
     skip = useRef(false),
     baseLayer = useRef(),
-    labelLayer = useRef(),
     searchMarker = useRef(),
     initialFitDone = useRef(false),
     callbacks = useRef({ onChange, onSelect, onDrawing });
-  callbacks.current = { onChange, onSelect, onDrawing };
+  callbacks.current = { onChange, onSelect, onDrawing, onMapPoint };
   const [mode, setMode] = useState("select"),
     [snap, setSnap] = useState(true),
     [version, setVersion] = useState(0),
     [notice, setNotice] = useState(""),
+    [drawingHint, setDrawingHint] = useState(""),
     [tileError, setTileError] = useState(false),
     [tilesLoading, setTilesLoading] = useState(true),
     [tilesSlow, setTilesSlow] = useState(false),
     [tileRevision, setTileRevision] = useState(0),
     [base, setBase] = useState("satellite"),
+    [archiveFallback, setArchiveFallback] = useState(false),
     [labels, setLabels] = useState(false),
     [showInfo, setShowInfo] = useState(false),
     [fullscreen, setFullscreen] = useState(false);
@@ -161,6 +171,7 @@ export default function ParcelMap({
     if (map.pm.globalRotateModeEnabled()) map.pm.disableGlobalRotateMode();
     if (map.pm.globalCutModeEnabled()) map.pm.disableGlobalCutMode();
     setMode("select");
+    setDrawingHint("");
     snapshot();
   }
   function fitInitialFields() {
@@ -184,9 +195,6 @@ export default function ParcelMap({
       zoomControl: false,
     });
     instance.current = map;
-    map.createPane("labels");
-    map.getPane("labels").style.zIndex = 450;
-    map.getPane("labels").style.pointerEvents = "none";
     L.control.zoom({ position: "bottomright" }).addTo(map);
     L.control.scale({ imperial: false, position: "bottomleft" }).addTo(map);
     map.pm.setLang("tr");
@@ -222,6 +230,7 @@ export default function ParcelMap({
       bind(e.layer);
       snapshot();
       setMode("select");
+      setDrawingHint("");
     });
     map.on("pm:remove", () => queueMicrotask(snapshot));
     map.on("pm:cut", (e) => {
@@ -291,7 +300,8 @@ export default function ParcelMap({
     setTilesLoading(true);
     setTilesSlow(false);
     baseLayer.current?.remove();
-    const config = basemaps[base];
+    const config = base === "road" ? basemaps.road : archiveFallback ? basemaps.archive
+      : labels && mapboxEnabled ? satelliteWithLabels : defaultBasemap;
     const tile = L.tileLayer(config.url, config.options);
     baseLayer.current = tile;
     let errors = 0;
@@ -302,7 +312,18 @@ export default function ParcelMap({
     tile.on("loading", () => setTilesLoading(true));
     tile.on("load", () => setTilesLoading(false));
     tile.on("tileerror", () => {
-      if (++errors >= 3) setTileError(true);
+      if (++errors >= 3) {
+        setTileError(true);
+        if (base === "satellite" && !loaded) {
+          if (mapboxEnabled && !archiveFallback) {
+            setNotice("Mapbox Satellite yüklenemedi. 2016 Sentinel-2 mozaiği açılıyor.");
+            setArchiveFallback(true);
+          } else {
+            setNotice("Uydu mozaiği yüklenemedi. Yol haritası açıldı.");
+            setBase("road");
+          }
+        }
+      }
     });
     tile.on("tileload", () => {
       loaded = true;
@@ -317,16 +338,45 @@ export default function ParcelMap({
       window.clearTimeout(slow);
       tile.remove();
     };
-  }, [base, tileRevision]);
+  }, [base, labels, tileRevision, archiveFallback]);
   useEffect(() => {
-    labelLayer.current?.remove();
-    if (labels && base === "satellite")
-      labelLayer.current = L.tileLayer(
-        labelsLayer.url,
-        labelsLayer.options,
-      ).addTo(instance.current);
-    return () => labelLayer.current?.remove();
-  }, [labels, base]);
+    const map = instance.current;
+    if (!map || !onViewport) return;
+    const publish = () => {
+      const center = map.getCenter();
+      onViewport({mapId,lat:center.lat,lon:center.lng,zoom:map.getZoom()});
+    };
+    map.on("moveend",publish);
+    return () => map.off("moveend",publish);
+  }, [mapId,onViewport]);
+  useEffect(() => {
+    const map = instance.current;
+    if (!map || !sharedViewport || sharedViewport.mapId === mapId) return;
+    const {lat,lon,zoom} = sharedViewport;
+    if (map.getZoom() !== zoom || map.getCenter().distanceTo([lat,lon]) > 0.1)
+      map.setView([lat,lon],zoom,{animate:false});
+  }, [sharedViewport,mapId]);
+  useEffect(() => {
+    const map = instance.current;
+    if (!map || !onMapPoint) return;
+    const handler = event => callbacks.current.onMapPoint?.([event.latlng.lng,event.latlng.lat]);
+    map.on("click",handler);
+    return () => map.off("click",handler);
+  }, [Boolean(onMapPoint)]);
+  useEffect(() => {
+    const map = instance.current;
+    if (!map || !projectLayers?.length) return;
+    const group = L.layerGroup().addTo(map);
+    for(const { geometry, name, color } of projectLayers) {
+      const layer = L.geoJSON(geometry, {
+        interactive:false, pmIgnore:true,
+        style:{color,weight:3,fillOpacity:0.14,dashArray:geometry.type==="LineString"?"5 6":undefined},
+        pointToLayer:(_,point)=>L.circleMarker(point,{radius:6,color,fillOpacity:1,interactive:false}),
+      }).addTo(group);
+      if(name) {const label=document.createElement("span");label.textContent=name;layer.bindTooltip(label,{permanent:geometry.type==="Point",direction:"top"});}
+    }
+    return () => group.remove();
+  }, [projectLayers]);
   useEffect(() => {
     const group = saved.current;
     if (!group) return;
@@ -336,10 +386,11 @@ export default function ParcelMap({
       const layer = L.geoJSON(field.geometry, {
         pmIgnore: true,
         style: {
-          color: "#dcff69",
-          weight: 3,
+          className: activeFieldId === field.id ? "parcel-selection" : "",
+          color: activeFieldId === field.id ? "#fff7d2" : "#dcff69",
+          weight: activeFieldId === field.id ? 3 : 2,
           fillColor: "#c6f367",
-          fillOpacity: 0.12,
+          fillOpacity: activeFieldId === field.id && image ? 0 : 0.12,
         },
       }).addTo(group);
       const tooltip = document.createElement("span");
@@ -348,29 +399,54 @@ export default function ParcelMap({
       layer.on("click", () => callbacks.current.onSelect?.(field));
     }
     fitInitialFields();
-  }, [fields]);
+  }, [fields, activeFieldId, Boolean(image)]);
   useEffect(() => {
-    if (imageLayer.current) {
-      imageLayer.current.remove();
+    const field = fields.find((item) => item.id === activeFieldId);
+    const map = instance.current;
+    if (!map || !field?.geometry) return;
+    const bounds = L.geoJSON(field.geometry).getBounds();
+    if (!bounds.isValid()) return;
+    const options = { padding: [45, 45], maxZoom: 17 };
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches)
+      map.fitBounds(bounds, { ...options, animate: false });
+    else map.flyToBounds(bounds, { ...options, duration: 0.55 });
+  }, [activeFieldId, fields]);
+  useEffect(() => {
+    const prior = imageLayer.current;
+    if (!image || !instance.current) {
+      prior?.remove();
       imageLayer.current = null;
+      return;
     }
-    if (image && instance.current) {
-      imageLayer.current = L.imageOverlay(
+    const motion = animateImagery && !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (!motion) prior?.remove();
+    const next = L.imageOverlay(
         image.url,
         [
           [image.bounds[1], image.bounds[0]],
           [image.bounds[3], image.bounds[2]],
         ],
-        { opacity: 0.9, interactive: false },
+        { opacity: image.opacity ?? 0.9, interactive: false, className: motion ? "dashboard-raster" : "" },
       ).addTo(instance.current);
-      draft.current?.bringToFront();
-      saved.current?.bringToFront();
-    }
-    return () => {
-      imageLayer.current?.remove();
-      imageLayer.current = null;
+    imageLayer.current = next;
+    draft.current?.bringToFront();
+    saved.current?.bringToFront();
+    let timer;
+    const finish = () => {
+      next.getElement()?.classList.add("is-loaded");
+      timer = setTimeout(() => prior?.remove(), 400);
     };
-  }, [image]);
+    if (motion) next.once("load", finish).once("error", finish);
+    return () => {
+      next.off("load", finish).off("error", finish);
+      clearTimeout(timer);
+      prior?.remove();
+      if (!motion) {
+        next.remove();
+        imageLayer.current = null;
+      }
+    };
+  }, [image, animateImagery]);
   function activate(next) {
     stop();
     const map = instance.current;
@@ -467,90 +543,8 @@ export default function ParcelMap({
     [Scissors, "cut", "Alan kes / delik aç"],
     [Trash2, "remove", "Taslak parçayı kaldır"],
   ];
-  return (
-    <div
-      className={`parcel-map aerial-map ${editable ? "is-editable" : ""} ${compact ? "is-compact" : ""}`}
-      style={{ height }}
-    >
-      <div className="leaflet-container-host" ref={element} />
-      {children && <div className="map-overlay-content">{children}</div>}
-      {!compact && (
-        <MapSearch
-          getCenter={() =>
-            instance.current?.getCenter() || { lat: 39, lng: 35 }
-          }
-          onSelect={(place) => {
-            stop();
-            const map = instance.current;
-            if (!map) return;
-            searchMarker.current?.remove();
-            const label = document.createElement("span");
-            label.textContent = place.name;
-            searchMarker.current = L.circleMarker([place.lat, place.lng], {
-              radius: 7,
-              color: "#fff",
-              weight: 3,
-              fillColor: "#a899ed",
-              fillOpacity: 1,
-              pmIgnore: true,
-            })
-              .addTo(map)
-              .bindTooltip(label, { direction: "top", offset: [0, -10] });
-            const leftPadding = Math.min(
-              editable ? 230 : children ? 310 : 40,
-              map.getSize().x / 3,
-            );
-            if (place.bbox) {
-              const [west, south, east, north] = place.bbox;
-              map.fitBounds(
-                [
-                  [south, west],
-                  [north, east],
-                ],
-                {
-                  paddingTopLeft: [leftPadding, 145],
-                  paddingBottomRight: [45, 80],
-                  maxZoom: 17,
-                },
-              );
-            } else map.setView([place.lat, place.lng], 16);
-            searchMarker.current.openTooltip();
-          }}
-        />
-      )}
-      <div className="basemap-switch" aria-label="Harita altlığı">
-        <button
-          type="button"
-          className={base === "satellite" ? "active" : ""}
-          onClick={() => setBase("satellite")}
-          aria-pressed={base === "satellite"}
-        >
-          <Satellite size={16} />
-          Uydu
-        </button>
-        <button
-          type="button"
-          className={base === "road" ? "active" : ""}
-          onClick={() => setBase("road")}
-          aria-pressed={base === "road"}
-        >
-          <MapIcon size={16} />
-          Harita
-        </button>
-        <button
-          type="button"
-          className={labels && base === "satellite" ? "active" : ""}
-          disabled={base !== "satellite"}
-          onClick={() => setLabels(!labels)}
-          title="Yer adlarını göster"
-          aria-label="Yer adlarını göster"
-          aria-pressed={labels && base === "satellite"}
-        >
-          <Layers size={16} />
-        </button>
-      </div>
-      {editable && (
-        <div className="drawing-palette" aria-label="Parsel çizim araçları">
+  const palette = editable && (
+    <div className="drawing-palette" aria-label="Parsel çizim araçları">
           <span className="palette-label">ÇİZİM ATÖLYESİ</span>
           <div className="palette-tools">
             {tools.map(([Icon, id, title]) => (
@@ -616,7 +610,7 @@ export default function ParcelMap({
           </div>
           <p>
             {mode === "polygon"
-              ? "Köşeleri tıklayın. İlk köşeye tıklayarak tamamlayın."
+              ? "Köşeleri sırayla işaretle ve Sınırı tamamla düğmesine bas."
               : mode === "edit"
                 ? "Köşeleri sürükleyin; ara noktaya tıklayarak köşe ekleyin. Sağ tıkla köşe silin."
                 : mode === "cut"
@@ -625,70 +619,161 @@ export default function ParcelMap({
                     ? "Kaldırmak istediğiniz taslak parçaya tıklayın. Kayda geçmesi için kaydedin."
                     : "Çizin, düzenleyin, sonra parselinizi kaydedin."}
           </p>
+          {(mode === "polygon" || mode === "cut") && (
+            <button className="finish-drawing" type="button" onClick={() => {
+              if (!instance.current?.pm.finishDraw())
+                setDrawingHint("Çizimi tamamlamak için kesişmeyen en az üç köşe gerekli.");
+            }}>
+              <Check size={15} /> {mode === "polygon" ? "Sınırı tamamla" : "Kesimi tamamla"}
+            </button>
+          )}
+          {drawingHint && <p role="status">{drawingHint}</p>}
           {mode !== "select" && (
             <button className="finish-drawing" type="button" onClick={stop}>
-              <Check size={15} />
-              Aracı bitir / gezin
+              {["polygon", "rectangle", "cut"].includes(mode) ? "Çizimi bırak" : "Aracı bitir / gezin"}
             </button>
           )}
         </div>
-      )}
-      <div className="map-utilities">
-        <span className="north-marker" title="Kuzey">
-          <Compass size={21} />
-          <b>K</b>
-        </span>
-        <button
-          type="button"
-          onClick={toggleFullscreen}
-          aria-label={fullscreen ? "Tam ekrandan çık" : "Haritayı tam ekran aç"}
-          title={fullscreen ? "Tam ekrandan çık" : "Haritayı tam ekran aç"}
-          aria-pressed={fullscreen}
-        >
-          {fullscreen ? <Minimize size={18} /> : <Maximize size={18} />}
-        </button>
-        <button
-          type="button"
-          aria-label="Konumuma git"
-          title="Konumuma git"
-          onClick={() => {
-            if (!navigator.geolocation) {
-              setNotice("Tarayıcı konum özelliğini desteklemiyor.");
-              return;
+  );
+  const mapSurface = (
+    <div
+      className={`parcel-map aerial-map ${editable ? "is-editable" : ""} ${compact ? "is-compact" : ""} ${workbench ? "map-workbench" : ""}`}
+      style={{ height }}
+    >
+      <div className="leaflet-container-host" ref={element} />
+      {children && <div className="map-overlay-content">{children}</div>}
+      <div className="map-control-deck">
+        {!compact && (
+          <MapSearch
+            getCenter={() =>
+              instance.current?.getCenter() || { lat: 39, lng: 35 }
             }
-            navigator.geolocation.getCurrentPosition(
-              (p) =>
-                instance.current.setView(
-                  [p.coords.latitude, p.coords.longitude],
-                  16,
-                ),
-              () =>
-                setNotice(
-                  "Konum alınamadı. Haritayı sürükleyin veya koordinat girin.",
-                ),
-            );
-          }}
-        >
-          <LocateFixed size={18} />
-        </button>
-        <button
-          type="button"
-          aria-label="Parsellere odaklan"
-          title="Parsellere odaklan"
-          onClick={() => {
-            const bounds = L.featureGroup([
-              ...saved.current.getLayers(),
-              ...draft.current.getLayers(),
-            ]).getBounds();
-            if (bounds.isValid())
-              instance.current.fitBounds(bounds, {
-                padding: [40, 40],
-                maxZoom: 18,
-              });
-          }}
-        >
-          <Expand size={18} />
-        </button>
+            onSelect={(place) => {
+              stop();
+              const map = instance.current;
+              if (!map) return;
+              searchMarker.current?.remove();
+              const label = document.createElement("span");
+              label.textContent = place.name;
+              searchMarker.current = L.circleMarker([place.lat, place.lng], {
+                radius: 7,
+                color: "#fff",
+                weight: 3,
+                fillColor: "#a899ed",
+                fillOpacity: 1,
+                pmIgnore: true,
+              })
+                .addTo(map)
+                .bindTooltip(label, { direction: "top", offset: [0, -10] });
+              const leftPadding = Math.min(
+                editable ? 230 : children ? 310 : 40,
+                map.getSize().x / 3,
+              );
+              if (place.bbox) {
+                const [west, south, east, north] = place.bbox;
+                map.fitBounds(
+                  [
+                    [south, west],
+                    [north, east],
+                  ],
+                  {
+                    paddingTopLeft: [leftPadding, 145],
+                    paddingBottomRight: [45, 80],
+                    maxZoom: 17,
+                  },
+                );
+              } else map.setView([place.lat, place.lng], 16);
+              searchMarker.current.openTooltip();
+            }}
+          />
+        )}
+        <div className="basemap-switch" aria-label="Harita altlığı">
+          <button
+            type="button"
+            className={base === "satellite" ? "active" : ""}
+            onClick={() => { setArchiveFallback(false); setBase("satellite"); }}
+            aria-pressed={base === "satellite"}
+          >
+            <Satellite size={16} />
+            Uydu
+          </button>
+          <button
+            type="button"
+            className={base === "road" ? "active" : ""}
+            onClick={() => setBase("road")}
+            aria-pressed={base === "road"}
+          >
+            <MapIcon size={16} />
+            Harita
+          </button>
+          <button
+            type="button"
+            className={labels && base === "satellite" ? "active" : ""}
+            onClick={() => setLabels(!labels)} disabled={!mapboxEnabled || archiveFallback || base !== "satellite"}
+            title="Yer adlarını göster"
+            aria-label="Yer adlarını göster"
+            aria-pressed={labels && base === "satellite"}
+          >
+            <Layers size={16} />
+          </button>
+        </div>
+        <div className="map-utilities">
+          <span className="north-marker" title="Kuzey">
+            <Compass size={21} />
+            <b>K</b>
+          </span>
+          <button
+            type="button"
+            onClick={toggleFullscreen}
+            aria-label={fullscreen ? "Tam ekrandan çık" : "Haritayı tam ekran aç"}
+            title={fullscreen ? "Tam ekrandan çık" : "Haritayı tam ekran aç"}
+            aria-pressed={fullscreen}
+          >
+            {fullscreen ? <Minimize size={18} /> : <Maximize size={18} />}
+          </button>
+          <button
+            type="button"
+            aria-label="Konumuma git"
+            title="Konumuma git"
+            onClick={() => {
+              if (!navigator.geolocation) {
+                setNotice("Tarayıcı konum özelliğini desteklemiyor.");
+                return;
+              }
+              navigator.geolocation.getCurrentPosition(
+                (p) => {
+                  setNotice("");
+                  instance.current?.setView([p.coords.latitude, p.coords.longitude], 16);
+                },
+                () =>
+                  setNotice(
+                    "Konum alınamadı. Haritayı sürükleyin veya koordinat girin.",
+                  ),
+              );
+            }}
+          >
+            <LocateFixed size={18} />
+          </button>
+          <button
+            type="button"
+            aria-label="Parsellere odaklan"
+            title="Parsellere odaklan"
+            onClick={() => {
+              const bounds = L.featureGroup([
+                ...saved.current.getLayers(),
+                ...draft.current.getLayers(),
+              ]).getBounds();
+              if (!bounds.isValid()) {
+                setNotice("Odaklanmak için önce bir parsel sınırı çizin.");
+                return;
+              }
+              setNotice("");
+              instance.current?.fitBounds(bounds, { padding: [40, 40], maxZoom: 18 });
+            }}
+          >
+            <Expand size={18} />
+          </button>
+        </div>
       </div>
       {editable && (
         <form
@@ -784,7 +869,7 @@ export default function ParcelMap({
           aria-label="Görüntü kaynağı bilgisi"
         >
           <Info size={14} />
-          {base === "satellite" ? "Esri World Imagery" : "OpenStreetMap"}
+          {base === "satellite" ? (archiveFallback ? basemaps.archive.label : defaultBasemap.label) : basemaps.road.label}
         </button>
         {showInfo && (
           <p>
@@ -794,6 +879,8 @@ export default function ParcelMap({
           </p>
         )}
       </div>
+      <MapboxWordmark visible={base === "satellite" && mapboxEnabled && !archiveFallback} />
     </div>
   );
+  return <div className={editable ? "parcel-drawing-layout" : "parcel-map-frame"}>{palette}{mapSurface}</div>;
 }

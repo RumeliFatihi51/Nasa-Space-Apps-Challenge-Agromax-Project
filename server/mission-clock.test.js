@@ -1,0 +1,48 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import { createMissionClock } from "../shared/mission-clock.js";
+
+test("mission time follows elapsed monotonic time rather than the number of drawn frames", () => {
+  let now = 1000;
+  const clock = createMissionClock(120, () => now);
+  clock.setPlaying(true);
+  now += 7350;
+  assert.equal(clock.snapshot().time, 7.35);
+  clock.setPlaying(false);
+  now += 30000;
+  assert.equal(clock.snapshot().time, 7.35);
+  clock.setRate(4);
+  clock.setPlaying(true);
+  now += 2000;
+  assert.equal(clock.snapshot().time, 15.35);
+  clock.setRate(2);
+  now += 1000;
+  assert.equal(clock.snapshot().time, 17.35);
+  clock.seek(119);
+  now += 1000;
+  assert.deepEqual(clock.snapshot(), { time: 120, playing: false, rate: 2 });
+  clock.seek(10);
+  clock.setPlaying(true);
+  now += 500;
+  assert.equal(clock.snapshot().time, 11);
+});
+test("seeks, invalid inputs, duration changes and pause/resume never invent or rewind flight time", () => {
+  let now = 0;
+  const clock = createMissionClock(60, () => now);
+  clock.seek(-1);
+  assert.equal(clock.snapshot().time, 0);
+  clock.seek(Infinity);
+  clock.setRate(NaN);
+  assert.equal(clock.snapshot().rate, 1);
+  clock.setPlaying(true);
+  now += 2000;
+  clock.setDuration(30);
+  assert.equal(clock.snapshot().time, 2);
+  now += 1000;
+  assert.equal(clock.snapshot().time, 3);
+  clock.setDuration(1);
+  assert.deepEqual(clock.snapshot(), { time: 1, playing: false, rate: 1 });
+  clock.setDuration(0);
+  clock.setPlaying(true);
+  assert.equal(clock.snapshot().playing, false);
+});

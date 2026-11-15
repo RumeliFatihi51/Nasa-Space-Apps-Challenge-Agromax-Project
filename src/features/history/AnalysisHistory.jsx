@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import useWorkspaceSync from "../../sync/useWorkspaceSync";
 import { History, RefreshCw, ArrowUpRight, Ban } from "lucide-react";
 import { api } from "../../api";
 import { PageHeading, EmptyState } from "../../components/ui/WorkspaceUI";
@@ -6,7 +7,7 @@ import FieldAnalysis from "../fields/FieldAnalysis";
 import "./records.css";
 import { states, timestamp } from "./format";
 
-export default function AnalysisHistory({ focusJob = null }) {
+export default function AnalysisHistory({ focusJob = null, onField, onInsights, fieldId = "" }) {
   const [jobs, setJobs] = useState(null),
     [error, setError] = useState(""),
     [reload, setReload] = useState(0),
@@ -14,12 +15,15 @@ export default function AnalysisHistory({ focusJob = null }) {
     [selected, setSelected] = useState(null),
     [focused, setFocused] = useState(null),
     [busy, setBusy] = useState(null);
+  const revision=useWorkspaceSync();
+  const detail = useRef(null);
+  const opener = useRef(null);
   useEffect(() => {
     const controller = new AbortController();
     let timer;
     async function load() {
       try {
-        const data = await api("analyses", undefined, "GET", {
+        const data = await api(fieldId?"analyses?fieldId="+encodeURIComponent(fieldId):"analyses", undefined, "GET", {
           signal: controller.signal,
         });
         if (!Array.isArray(data.jobs))
@@ -39,10 +43,13 @@ export default function AnalysisHistory({ focusJob = null }) {
       controller.abort();
       clearTimeout(timer);
     };
-  }, [reload]);
+  }, [reload,fieldId,revision]);
   useEffect(() => {
     if (focusJob) open(focusJob);
   }, [focusJob]);
+  useEffect(() => {
+    if (selected) detail.current?.focus();
+  }, [selected]);
   async function open(jobId) {
     setBusy(jobId);
     setError("");
@@ -70,18 +77,14 @@ export default function AnalysisHistory({ focusJob = null }) {
       setBusy(null);
     }
   }
-  if (selected)
-    return (
-      <FieldAnalysis
-        key={selected.id}
-        field={selected.field}
-        initialAnalysis={selected.analysis}
-        onBack={() => setSelected(null)}
-      />
-    );
   const filtered = (jobs || []).filter(
     (j) => filter === "all" || j.state === filter,
   );
+  const countByState = new Map();
+  for (const { state } of jobs || []) countByState.set(state, (countByState.get(state) || 0) + 1);
+  const distribution = Object.entries(states).map(([id, label]) => ({ id, label, count: countByState.get(id) || 0 }));
+  const otherCount = (jobs?.length || 0) - distribution.reduce((sum, item) => sum + item.count, 0);
+  if (otherCount) distribution.push({ id: "other", label: "Diğer", count: otherCount });
   return (
     <div className="records-workspace">
       <PageHeading
@@ -94,11 +97,28 @@ export default function AnalysisHistory({ focusJob = null }) {
           Yenile
         </button>
       </PageHeading>
+      {jobs && <figure className="history-distribution">
+        <figcaption><span>Kayıtların işlem durumuna göre dağılımı</span><strong>{jobs.length} işlem</strong></figcaption>
+        {jobs.length > 0 && <div className="history-distribution-track" aria-hidden="true">
+          {distribution.filter(({ count }) => count > 0).map(({ id, count }) =>
+            <span key={id} data-state={id} style={{ flexGrow: count }} />)}
+        </div>}
+        <dl className="history-counts" aria-label="Analiz işlemlerinin özeti">
+          {distribution.map(({ id, label, count }) => (
+            <div key={id} data-state={id}><dt>{label}</dt><dd>{count}</dd></div>
+          ))}
+        </dl>
+      </figure>}
       {error && (
         <p className="error" role="alert">
           {error}
         </p>
       )}
+      {selected && <section className="records-inline-detail" ref={detail} tabIndex={-1} aria-label="Açık analiz sonucu">
+        {onField && <button className="text-button" onClick={() => onField(selected.field)}>Güncel parsel kaydını aç</button>}
+        <FieldAnalysis key={selected.id} field={selected.field} initialAnalysis={selected.analysis}
+          archiveId={selected.id} embedded onInsights={onInsights && (() => onInsights(selected.field.id, selected.id))} onBack={() => { setSelected(null); opener.current?.focus(); }} />
+      </section>}
       {focused && (
         <section className="panel records-filter" role="status">
           <div>
@@ -173,7 +193,7 @@ export default function AnalysisHistory({ focusJob = null }) {
                         <button
                           className="text-button"
                           disabled={busy === j.id}
-                          onClick={() => open(j.id)}
+                          onClick={(event) => { opener.current = event.currentTarget; open(j.id); }}
                         >
                           Sonucu aç <ArrowUpRight size={15} />
                         </button>

@@ -1,0 +1,6 @@
+{
+  "name": "AgroMax | Uydu Yer İstasyonu ve Otonom Drone Kontrol Merkezi",
+  "description": "Uydu yer istasyonu haberleşmesi, multispektral görüntü işleme ve otonom tarımsal drone görev kontrol simülasyon platformu.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

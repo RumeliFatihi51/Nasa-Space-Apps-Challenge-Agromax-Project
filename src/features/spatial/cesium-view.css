@@ -1,0 +1,11 @@
+.google-3d-view{position:fixed;inset:0;z-index:1000;background:#15291f;color:#f5f2e8;font-family:inherit}
+.google-3d-mount{position:absolute;inset:0}
+.google-3d-toolbar{position:absolute;top:16px;left:16px;right:16px;display:flex;align-items:center;justify-content:space-between;gap:16px;padding:16px 20px;background:#102b25ed;border:1px solid #b8cda44d;border-radius:12px;backdrop-filter:blur(12px)}
+.google-3d-toolbar strong{display:block;font-size:20px;overflow-wrap:anywhere}
+.google-3d-toolbar span{font-size:10px;letter-spacing:.15em;color:#d8f2a5}
+.google-3d-controls{display:flex;gap:8px;flex-wrap:wrap}
+.google-3d-toolbar button{font:inherit;min-height:44px;padding:8px 14px;border:1px solid #b8cda477;border-radius:6px;background:#203e34;color:#f5f2e8;cursor:pointer}
+.google-3d-toolbar button:last-child{background:#d8f2a5;color:#143529}
+.google-3d-toolbar button:focus-visible{outline:3px solid #ffe2a7;outline-offset:3px}
+.google-3d-view .google-3d-status{position:absolute;left:20px;bottom:44px;max-width:calc(100% - 40px);margin:0;padding:10px 14px;border-radius:6px;background:#102b25e6;color:#f5f2e8;font-size:13px;pointer-events:none}
+@media(max-width:600px){.google-3d-toolbar{top:8px;left:8px;right:8px;padding:10px;display:block}.google-3d-toolbar strong{font-size:16px}.google-3d-controls{margin-top:8px;gap:5px}.google-3d-toolbar button{font-size:12px;padding:6px 9px}.google-3d-view .google-3d-status{left:8px;bottom:65px;max-width:calc(100% - 16px);font-size:11px;padding:8px}}

@@ -1,19 +1,25 @@
-import { lazy, Suspense, useEffect, useMemo, useState } from "react";
+import useWorkspaceSync from "./sync/useWorkspaceSync";
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { Sprout, ArrowRight, X, LoaderCircle } from "lucide-react";
 import AppShell from "./components/AppShell";
+import { CinematicLoader } from "./motion/entrance";
 import Auth from "./components/Auth";
 import TaskModal from "./features/tasks/TaskModal";
 import { modules, canonicalPage, operationPages } from "./features/modules";
 import { I } from "./components/icons";
 import { api, setOrganizationId } from "./api";
 import { clearOffline, readOffline } from "./offline";
-import { LogoMark } from "./components/Brand";
 import ErrorBoundary from "./components/ErrorBoundary";
 import PreferenceProvider from "./components/PreferenceProvider";
 import useWorkspacePage from "./components/useWorkspacePage";
 import { platformPages } from "../shared/platform";
+const PlantStudio = lazy(() => import("./features/plants/PlantStudio"));
+const FieldStudio = lazy(() => import("./features/spatial/FieldStudio"));
+const ArchitectWorkspace = lazy(() => import("./features/architect/ArchitectWorkspace"));
 const PlatformWorkspace = lazy(() => import("./features/platform/PlatformWorkspace"));
+const TerraBrain = lazy(() => import("./features/terra-brain/TerraBrain"));
 const Dashboard = lazy(() => import("./features/overview/Dashboard"));
+const FieldInsights = lazy(() => import("./features/fields/FieldInsights"));
 const FieldsWorkspace = lazy(() => import("./features/fields/FieldsWorkspace"));
 const Filiz = lazy(() => import("./features/assistant/Filiz"));
 const IntegrationStatus = lazy(
@@ -48,8 +54,16 @@ const AnalysisHistory = lazy(
 const Notifications = lazy(
   () => import("./features/notifications/Notifications"),
 );
+const businessOnlyModules = {
+  finance: "Gerçekleşen giderler işletme çalışma alanında tutulur. Kişisel alanda senaryo giderlerini karşılaştırabilirsin.",
+  reports: "PDF rapor arşivi işletme çalışma alanında kullanılabilir. Kişisel alanda parselin JSON kanıt paketini indirebilirsin.",
+  settings: "Profil, ekip ve oturum ayarları işletme çalışma alanında kullanılabilir.",
+  operations: "Sezon ve saha kayıtları işletme çalışma alanında tutulur. Kişisel alanda takvimden görev planlayabilirsin.",
+};
 export default function App() {
-  const [page, setPage] = useWorkspacePage();
+  const [page, setPage, location] = useWorkspacePage();
+  const destinationField = location.field;
+  const [spatialSelection, setSpatialSelection] = useState({});
   const [user, setUser] = useState(null),
     [loading, setLoading] = useState(true),
     [ready, setReady] = useState(false),
@@ -59,10 +73,12 @@ export default function App() {
     [modal, setModal] = useState(false),
     [saving, setSaving] = useState(false),
     [createRequest, setCreateRequest] = useState(0),
-    [focus, setFocus] = useState(null),
+    [satellite, setSatellite] = useState(null),
     [reload, setReload] = useState(0),
     [notifications, setNotifications] = useState(null),
     [historyFocus, setHistoryFocus] = useState(null),
+    [taskDate, setTaskDate] = useState(""),
+    [taskField, setTaskField] = useState(""),
     [commercial, setCommercial] = useState(null),
     [commercialError, setCommercialError] = useState(""),
     [operationPage, setOperationPage] = useState("seasons");
@@ -70,6 +86,26 @@ export default function App() {
     commercial?.organizations.find(
       (o) => o.id === commercial.preferences?.activeOrganizationId,
     ) || commercial?.organizations[0];
+  const canRunVerifiedAnalysis = !activeWorkspace ||
+    (activeWorkspace.role !== "viewer" && commercial.user.emailVerified);
+  const canRunParcelAnalysis = canRunVerifiedAnalysis ||
+    (activeWorkspace?.role !== "viewer" && commercial?.capabilities?.workspaceMode === "existing-account");
+  useEffect(() => {
+    setSatellite(null);
+    if (!user?.id || (user.commercial && !activeWorkspace?.id)) return;
+    const controller = new AbortController();
+    api("satellite/status", undefined, "GET", { signal: controller.signal })
+      .then((status) => { if (!controller.signal.aborted) setSatellite(status); })
+      .catch(() => { if (!controller.signal.aborted) setSatellite({ unavailable: true }); });
+    return () => controller.abort();
+  }, [user?.id, user?.commercial, activeWorkspace?.id]);
+  const dataRevision=useWorkspaceSync();
+  useEffect(()=>{
+    if(!dataRevision||!user)return;
+    const controller=new AbortController();
+    api("records",undefined,"GET",{signal:controller.signal}).then(value=>{if(!controller.signal.aborted){setRecords(value);setRecordError("");}}).catch(error=>{if(!controller.signal.aborted)setRecordError(error.message);});
+    return()=>controller.abort();
+  },[dataRevision,user?.id,activeWorkspace?.id]);
   async function reloadWorkspace() {
     const data = await api("v1/bootstrap");
     const selected =
@@ -105,11 +141,30 @@ export default function App() {
       });
     return () => controller.abort();
   }, [user?.id, user?.commercial]);
+  const [entryError, setEntryError] = useState("");
+  const entry = new URLSearchParams(window.location.search);
+  const accountEntry = entry.get("account") === "existing" || entry.get("flow") === "reset";
+  async function enterWorkspace() {
+    setLoading(true);
+    setEntryError("");
+    try {
+      const current = await api("me").catch(error => {
+        if (error.status !== 401) throw error;
+        clearOffline();
+        return accountEntry ? null : api("guest", {});
+      });
+      setUser(current);
+    } catch (error) {
+      setEntryError(error.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+  const initialEntry = useRef(false);
   useEffect(() => {
-    api("me")
-      .then(setUser)
-      .catch((error) => { if (error.status === 401) clearOffline(); })
-      .finally(() => setLoading(false));
+    if (initialEntry.current) return;
+    initialEntry.current = true;
+    void enterWorkspace();
   }, []);
   useEffect(() => {
     const local = readOffline();
@@ -175,21 +230,20 @@ export default function App() {
       [records],
     ),
     tasks = useMemo(() => records.filter((r) => r.kind === "task"), [records]);
-  function navigate(id) {
+  function navigate(id, fieldId = location.field, options = {}) {
     if (operationPages.includes(id)) setOperationPage(id);
-    setPage(canonicalPage(id));
-    setFocus(null);
+    if (id === "terra-brain" && fieldId && ["fields", "field-insights", "twin", "scenarios", "assistant"].includes(page))
+      options = { metric: "latest", ...options };
+    setPage(canonicalPage(id), { ...options, field: typeof fieldId === "string" ? fieldId : "" });
     setHistoryFocus(null);
     setError("");
   }
   function create() {
-    setFocus(null);
     if (page !== "overview") setPage("fields");
     setCreateRequest((n) => n + 1);
   }
-  function analyze(field) {
-    setFocus(field.id);
-    setPage("fields");
+  function analyze(field, metric) {
+    setPage("fields", { field: field.id, metric });
   }
   async function saveTask(e) {
     e.preventDefault();
@@ -236,27 +290,28 @@ export default function App() {
     setRecords([]);
     setReady(false);
     setPage("overview");
+    if (!accountEntry) await enterWorkspace();
   }
-  function openTask() {
+  function openTask(date, fieldId = "") {
+    setTaskField(fieldId);
+    setTaskDate(typeof date === "string" ? date : "");
     setError("");
     setModal(true);
   }
-  if (loading)
-    return (
-      <div className="studio-loading">
-        <span>
-          <LogoMark size={68} />
-        </span>
-        <strong>agromax.</strong>
-        <p>Çalışma alanın hazırlanıyor…</p>
-        <LoaderCircle size={18} className="spin" />
-      </div>
-    );
-  if (
-    !user ||
-    new URLSearchParams(window.location.search).get("flow") === "reset"
-  )
-    return <Auth onLogin={setUser} />;
+  if (loading) return <CinematicLoader />;
+  if (entryError && !user) return <section className="studio-module-empty">
+    <h1>Çalışma alanı açılamadı.</h1><p role="alert">{entryError}</p>
+    <button className="primary" onClick={enterWorkspace}>Tekrar dene</button>
+  </section>;
+  if (accountEntry && (!user || user.guest || entry.get("flow") === "reset"))
+    return <Auth existingOnly onLogin={next => {
+      const url = new URL(window.location.href);
+      url.searchParams.delete("account");
+      url.searchParams.delete("flow");
+      window.history.replaceState(null, "", url);
+      setUser(next);
+    }}/>;
+  if (!user) return <CinematicLoader />;
   if (user.commercial && !commercial)
     return (
       <section className="studio-module-empty">
@@ -321,9 +376,12 @@ export default function App() {
   else if (page === "overview")
     content = (
       <Dashboard
+        key={activeWorkspace?.id || user.id}
         user={user}
         fields={fields}
         tasks={tasks}
+        notifications={notifications}
+        workspace={activeWorkspace}
         onCreate={create}
         onSelect={analyze}
         onNavigate={navigate}
@@ -336,29 +394,57 @@ export default function App() {
         }
       />
     );
-  else if (platformPages.includes(page))
+  else if (page === "plant-studio")
+    content = <PlantStudio key={activeWorkspace?.id || user.id} connected={!!activeWorkspace} />;
+  else if (page === "architect")
+    content = <ArchitectWorkspace key={activeWorkspace?.id || user.id} fields={fields} initialFieldId={destinationField}
+      canWrite={activeWorkspace?.role !== "viewer"} onNavigate={navigate} commercial={!!activeWorkspace} onFieldChange={field=>setPage("architect",{field},true)}/>;
+  else if (page === "field-studio")
+    content = <FieldStudio key={`${activeWorkspace?.id || user.id}:${destinationField}:${location.metric || ""}:${location.date}:${location.earlier}:${location.analysis}:${location.priorAnalysis}`}
+      fields={fields} tasks={tasks} initialFieldId={destinationField} initialMetric={location.metric} initialDate={location.date} initialEarlier={location.earlier} initialAnalysis={location.analysis} initialPriorAnalysis={location.priorAnalysis}
+      commercial={!!activeWorkspace} canWrite={!activeWorkspace || activeWorkspace.role !== "viewer"}
+      onNavigate={navigate} onCreateTask={openTask} onToggleTask={toggle} onCreateField={create} />;
+  else if (page === "terra-brain")
+    content = <TerraBrain key={`${activeWorkspace?.id || user.id}:${location.analysis}:${location.metric}`} fields={fields} initialField={destinationField}
+      initialRun={location.analysis} latest={location.metric === "latest"} connected={!!activeWorkspace} canWrite={activeWorkspace?.role !== "viewer"}
+      onNavigate={navigate} />;
+  else if (page === "flight" || platformPages.includes(page))
     content = <PlatformWorkspace
       key={`${activeWorkspace?.id || user.id}:${page}`}
       page={page}
+      initialSelection={location}
+      initialFieldId={destinationField}
+      spatialSelection={spatialSelection[activeWorkspace?.id || user.id] || {}}
+      onSpatialSelection={(fieldId, value) => setSpatialSelection(current => {
+        const scope = activeWorkspace?.id || user.id;
+        return { ...current, [scope]: { ...current[scope], [fieldId]: value } };
+      })}
       fields={fields}
       onNavigate={navigate}
       onSelect={analyze}
       commercial={!!activeWorkspace}
       canWrite={!activeWorkspace || activeWorkspace.role !== "viewer"}
+      canEditTerrain={["owner", "manager"].includes(activeWorkspace?.role)}
       waterBalance={commercial?.capabilities?.waterBalance}
       claimsEnabled={commercial?.capabilities?.claims}
-      canCalculate={!!user.emailVerified && activeWorkspace?.role !== "viewer"}
+      canCalculate={activeWorkspace?.role !== "viewer" &&
+        (!!user.emailVerified || !!user.guest || commercial?.capabilities?.workspaceMode === "existing-account")}
       offline={commercial?.capabilities?.offlineNotes && activeWorkspace && activeWorkspace.role !== "viewer"
         ? { userId: user.id, organizationId: activeWorkspace.id, tasks }
         : null}
     />;
+  else if (page === "field-insights")
+    content = <FieldInsights key={activeWorkspace?.id || user.id} fields={fields} fieldId={destinationField}
+      archiveId={location.analysis} onNavigate={navigate} onFieldChange={id => navigate("field-insights", id)} />;
   else if (page === "history")
-    content = <AnalysisHistory focusJob={historyFocus} />;
+    content = <AnalysisHistory key={destinationField} focusJob={historyFocus} onField={analyze} fieldId={destinationField}
+      onInsights={(id, analysis) => navigate("field-insights", id, { analysis })} />;
   else if (page === "notifications")
     content = (
       <Notifications
         onChanged={setNotifications}
-        onJob={(id) => {
+        onJob={(id, event) => {
+          if (event.type === "terra_brain") return navigate("terra-brain", event.fieldId, { analysis: id });
           setHistoryFocus(id);
           setPage("history");
         }}
@@ -369,10 +455,8 @@ export default function App() {
       <FieldsWorkspace
         commercial={!!activeWorkspace}
         customAnalysis={commercial?.capabilities?.customAnalysis !== false}
-        canAnalyze={
-          !activeWorkspace ||
-          (activeWorkspace.role !== "viewer" && commercial.user.emailVerified)
-        }
+        canAnalyze={canRunParcelAnalysis}
+        canRunResearch={canRunVerifiedAnalysis}
         locale={commercial?.preferences?.locale || "tr"}
         favorites={commercial?.preferences?.metricFavorites || []}
         onFavorites={async (ids) => {
@@ -385,7 +469,17 @@ export default function App() {
         fields={fields}
         createRequest={createRequest}
         onCreateHandled={() => setCreateRequest(0)}
-        focusField={focus}
+        focusField={location.field}
+        selectedMetric={location.metric}
+        onSelectField={(id) => setPage(page, { field: id })}
+        onSelectMetric={(metric) => setPage(page, { field: location.field, metric }, true)}
+        satellite={satellite}
+        onConnections={() => navigate("integrations")}
+        onInsights={id => navigate("field-insights", id)}
+        onResearch={id => navigate("terra-brain", id)}
+        onAssistant={(fieldId) => navigate("assistant", fieldId)}
+        onTwin={(fieldId) => navigate("twin", fieldId)}
+        onSpatial={(fieldId) => setPage("field-studio", { field: fieldId, metric: "NDVI" })}
         analysisMode={page === "satellite"}
         onSaved={(record) =>
           setRecords((v) =>
@@ -401,7 +495,7 @@ export default function App() {
       />
     );
   else if (page === "tasks")
-    content = <TaskBoard tasks={tasks} onToggle={toggle} onCreate={openTask} />;
+    content = <TaskBoard tasks={tasks} fields={fields} onField={analyze} onToggle={toggle} onCreate={openTask} />;
   else if (page === "weather")
     content = activeWorkspace ? (
       <WeatherWorkspace
@@ -448,8 +542,10 @@ export default function App() {
   else if (activeWorkspace && page === "reports")
     content = (
       <ReportsWorkspace
-        key={activeWorkspace.id}
+        key={`${activeWorkspace.id}:${destinationField}`}
         fields={fields}
+        initialFieldId={destinationField}
+        onNavigate={navigate}
         organizationId={activeWorkspace.id}
         dailyLimit={commercial?.capabilities?.reportDailyLimit}
         locale={commercial.preferences?.locale || "tr"}
@@ -459,11 +555,13 @@ export default function App() {
   else if (page === "assistant")
     content = activeWorkspace ? (
       <FilizWorkspace
-        key={activeWorkspace.id}
+        key={`${activeWorkspace.id}:${destinationField}`}
         fields={fields}
+        initialFieldId={destinationField}
         workspace={activeWorkspace}
         locale={commercial.preferences?.locale || "tr"}
         onConfirmed={() => setReload((n) => n + 1)}
+        onResearch={(id) => navigate("terra-brain", id)}
       />
     ) : (
       <Filiz fields={fields} tasks={tasks} onNavigate={navigate} />
@@ -478,7 +576,7 @@ export default function App() {
             <p>Harita, uydu ve diğer veri kaynaklarını buradan takip et.</p>
           </div>
         </div>
-        <IntegrationStatus />
+        <IntegrationStatus status={satellite} />
       </>
     );
   else
@@ -494,16 +592,12 @@ export default function App() {
           <span>
             <PageIcon size={36} />
           </span>
-          <small>GELİŞTİRME AŞAMASINDA</small>
+          <small>{businessOnlyModules[page] ? "İŞLETME MODÜLÜ" : "GELİŞTİRME AŞAMASINDA"}</small>
           <h2>
-            {page === "weather"
-              ? "Havanın bilgisini, kaynağından alacağız."
-              : "Bu alanın yeni araçları hazırlanıyor."}
+            {businessOnlyModules[page] ? "İşletme çalışma alanı gerekli." : "Bu alanın yeni araçları hazırlanıyor."}
           </h2>
           <p>
-            {page === "weather"
-              ? "Meteoroloji bağlantısı tamamlandığında konuma ait gerçek gözlemler ve tarihli tahminler burada yer alacak."
-              : "Bu modül henüz etkin değil. Gerekli veri bağlantıları ve iş akışları tamamlandığında kullanıma açılacak."}
+            {businessOnlyModules[page] || "Bu modül gerekli bağlantılar tamamlandığında kullanıma açılacak."}
           </p>
           <button
             className="secondary"
@@ -519,6 +613,8 @@ export default function App() {
     <PreferenceProvider preferences={commercial?.preferences}>
       <AppShell
         page={page}
+        scene={page === "fields" || (["weather", "settings"].includes(page) && activeWorkspace) ? null :
+          page === "operations" ? `operations-${operationPage}` : page}
         user={user}
         fields={fields}
         tasks={tasks}
@@ -567,7 +663,7 @@ export default function App() {
             </button>
           </div>
         )}
-        <ErrorBoundary resetKey={page}>
+        <ErrorBoundary resetKey={`${page}:${destinationField}`}>
           <Suspense
             fallback={
               <div className="studio-module-loading" role="status">
@@ -580,7 +676,7 @@ export default function App() {
           </Suspense>
         </ErrorBoundary>
         {modal && (
-          <TaskModal
+          <TaskModal initialDate={taskDate} initialFieldId={taskField} fields={fields}
             onClose={() => setModal(false)}
             onSave={saveTask}
             busy={saving}

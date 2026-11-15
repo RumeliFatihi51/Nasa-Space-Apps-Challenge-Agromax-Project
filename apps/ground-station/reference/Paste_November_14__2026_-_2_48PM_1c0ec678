@@ -1,0 +1,993 @@
+# AGROMAX | Uydu Yer İstasyonu, Multispektral Analiz ve Otonom Drone Görev Kontrol Sistemi
+
+## 1. PROJENİN AMACI
+
+AgroMax isimli profesyonel bir tarım teknolojileri platformu için, gerçekçi ve tamamen etkileşimli bir **3D Uydu Haberleşme, Veri İşleme ve Otonom Drone Operasyon Simülasyonu** geliştir.
+
+Bu proje yalnızca görsel bir tanıtım animasyonu olmayacak. Gerçek sistem mimarisini temsil eden, kullanıcı etkileşimlerine tepki veren, bilimsel ve teknik olarak tutarlı bir **Mission Control / Ground Station Simulation** uygulaması olacak.
+
+Ana hedefimiz, uydu kaynaklı multispektral verilerin yer istasyonuna ulaşmasından başlayarak, bu verilerin AgroMax tarafından analiz edilmesi ve elde edilen sonuçların bir drone görev planına dönüştürülmesi sürecini tek bir profesyonel kontrol merkezinde göstermektir.
+
+Sistemin temel akışı:
+
+**UYDU → ÇANAK ANTEN → RF ALICI / SDR → VERİ ÇÖZÜMLEME → AGROMAX YEREL SUNUCUSU → MULTİSPEKTRAL ANALİZ → GÖREV PLANLAMA → DRONE → TARLA ÜZERİNDE OTONOM OPERASYON → GÖREV RAPORU**
+
+Kullanıcı bu sürecin her aşamasını üç boyutlu ortamda görebilmeli, yönetebilmeli, durdurabilmeli, tekrar başlatabilmeli ve sonuçlarını inceleyebilmelidir.
+
+### Önemli kapsam
+
+- Bu sürümde dijital ikiz modülü geliştirme.
+- Öncelik uydu haberleşmesi, veri işleme, haritalama ve drone görev operasyonudur.
+- Arayüz tamamen Türkçe olmalıdır.
+- AgroMax kurumsal kimliğine uygun, ciddi ve üst düzey profesyonel bir tasarım kullanılmalıdır.
+- Sistem masaüstü tarayıcılarda yüksek kaliteli çalışmalıdır.
+- Sahte çalışan butonlar, dekoratif ama işlevsiz paneller veya rastgele oluşturulmuş sonuçlar olmamalıdır.
+- Gerçek bağlantı bulunmadığında uygulama **SİMÜLASYON** modunda çalışmalıdır.
+- Gerçek donanım bağlantıları ayrıca geliştirilebilecek modüler adaptörlerle temsil edilmelidir.
+
+---
+
+# 2. TEKNOLOJİ VE YAZILIM MİMARİSİ
+
+Uygulamayı modern, sürdürülebilir ve modüler bir mimariyle geliştir.
+
+Tercih edilen teknolojiler:
+
+**Frontend**
+- React
+- TypeScript
+- Vite
+- Tailwind CSS
+- shadcn/ui veya eşdeğer profesyonel bileşen sistemi
+- Lucide Icons
+- Zustand veya benzer durum yönetimi
+
+**3D ve harita**
+- CesiumJS: uydu yörüngeleri, Dünya ve coğrafi konumlu 3D sahneler
+- Three.js / React Three Fiber: detaylı çanak anten, yer istasyonu, drone ve teknik ekipman modelleri
+- MapLibre GL JS: gerektiğinde 2D harita ve görev düzenleme
+- Turf.js: parsel sınırları, tampon bölgeler ve coğrafi hesaplamalar
+
+**Veri görselleştirme**
+- Recharts veya ECharts
+- Gerçek koordinatlara bağlı raster ve vektör katmanları
+- WebGL tabanlı performanslı görselleştirme
+
+**Backend için önerilen mimari**
+- Python FastAPI
+- WebSocket üzerinden gerçek zamanlı telemetri
+- Rasterio / GDAL / NumPy: uydu görüntüsü işleme
+- GeoJSON, GeoTIFF, STAC gibi standartlarla uyum
+- SQLite ile başlayabilecek, sonradan PostgreSQL/PostGIS'e taşınabilecek veri modeli
+
+Google AI Studio ortamında gerçek backend servisleri kurulamayabilir. Bu durumda frontend'i tamamen çalışır şekilde oluştur, backend adaptörlerinin arayüzlerini ve örnek servis kodlarını hazırla. Kullanıcıya gerçek bağlantı varmış gibi davranma.
+
+---
+
+# 3. GENEL ARAYÜZ TASARIMI
+
+Arayüz NASA görev kontrol merkezi, profesyonel GIS yazılımı ve modern havacılık yer kontrol istasyonu kalitesinde olmalı.
+
+Çocuksu, oyuncak gibi, aşırı neon renkli veya basit bir oyun arayüzü istemiyorum.
+
+## Tasarım dili
+
+- Koyu antrasit ve derin lacivert ana tema
+- AgroMax'a uygun kontrollü yeşil ve turkuaz vurgular
+- Temiz tipografi
+- Teknik ama kolay anlaşılır paneller
+- Gerçekçi ışıklandırma
+- İnce durum göstergeleri
+- Profesyonel veri tabloları
+- Yumuşak panel geçişleri
+- Çok iyi boşluk ve hizalama yönetimi
+- Gereksiz animasyon ve görsel kalabalıktan kaçınma
+
+## Ana yerleşim
+
+**Sol navigasyon:**
+1. Operasyon Merkezi
+2. Uydu ve Yörünge
+3. Yer İstasyonu
+4. Veri Alımı
+5. Multispektral Analiz
+6. Harita ve Parseller
+7. Drone Görev Planlama
+8. Canlı Operasyon
+9. Görev Raporları
+10. Sistem Ayarları
+
+**Üst durum çubuğu:**
+- AgroMax logosu
+- Çalışma modu: SİMÜLASYON / GERÇEK VERİ
+- Yer istasyonu durumu
+- Uydu bağlantısı
+- Veri akış hızı
+- Yerel sunucu durumu
+- Drone bağlantısı
+- Aktif görev
+- Sistem saati
+
+**Merkez:**
+Büyük, etkileşimli 3D görselleştirme.
+
+**Sağ panel:**
+Seçili uydu, anten, veri paketi, analiz veya drone hakkında ayrıntılı bilgiler.
+
+**Alt panel:**
+Zaman çizelgesi, olay kayıtları, veri transferi ve görev ilerlemesi.
+
+Paneller yeniden boyutlandırılabilir ve gerektiğinde gizlenebilir olmalı.
+
+---
+
+# 4. ÜÇ BOYUTLU UYDU VE YER İSTASYONU SAHNESİ
+
+Bu modül projenin en önemli görsel bileşenlerinden biridir.
+
+## Dünya ve uydu modeli
+
+3D Dünya üzerinde gerçek coğrafi koordinatlar kullanılmalı.
+
+Gösterilecek öğeler:
+
+- Dünya küresi
+- Atmosferin hafif görsel etkisi
+- Dünya üzerindeki yer istasyonu
+- Seçili uydu
+- Uydu yörüngesi
+- Uydu yer izi
+- İstasyonun görüş alanı
+- Uydu ile istasyon arasındaki haberleşme hattı
+- Uydu yükseliş ve batış noktaları
+
+Simülasyonda kullanıcı farklı uydu profilleri seçebilmeli:
+
+- Sentinel-2 benzeri optik gözlem uydusu
+- Landsat 8/9 benzeri gözlem uydusu
+- Ticari yüksek çözünürlüklü görüntüleme uydusu
+- EUMETCast benzeri veri dağıtım uydusu
+
+**Çok önemli teknik kural:**
+
+Bu profillerin hepsinin mevcut antenle gerçekten alınabildiğini iddia etme.
+
+Her uydu profili için şunları göster:
+
+- Yörünge türü
+- Veri türü
+- Haberleşme bandı
+- Gerekli yer istasyonu sınıfı
+- Doğrudan alımın mevcut donanımla uygunluğu
+- Simülasyon desteği
+- Gerçek bağlantı durumu
+
+Sentinel-2 ve Landsat için doğrudan bilimsel veri alımının özel X-band yer istasyonu gerektirdiğini belirt.
+
+Standart Ku-band LNB ile bu verilerin doğrudan alınabildiğini gösterme.
+
+## Gerçekçi 3D çanak anten
+
+Yer istasyonunda yüksek kaliteli bir parabolik anten modeli oluştur.
+
+Modelin parçaları:
+
+- Parabolik reflektör
+- Anten besleme sistemi
+- LNB veya seçilen frekansa uygun RF ön uç
+- Anten taşıyıcı iskeleti
+- Azimut motoru
+- Elevasyon motoru
+- Anten kontrol ünitesi
+- RF kablo bağlantıları
+- Alıcı / SDR
+- Veri işleme bilgisayarı
+- Yerel sunucu kabini
+
+80 cm çanak anten başlangıç donanım profili olarak gösterilsin.
+
+Ancak X-band profesyonel alım senaryosunda uygun farklı anten ve RF donanımı modeli seçilebilsin.
+
+Model gerçekçi materyaller, metal yüzeyler, bağlantılar ve mekanik detaylar içermeli.
+
+Mümkün olduğunda lisanslı, yüksek kaliteli GLB/GLTF modeller kullanılabilecek bir varlık yükleme sistemi hazırla.
+
+Basit koni ve silindirlerden oluşan oyuncak anten istemiyorum.
+
+## Anten hareketi
+
+Uydu görünür hale geldiğinde:
+
+1. Anten kontrol sistemi hedef uydunun konumunu hesaplar.
+2. Azimut ve elevasyon açıları güncellenir.
+3. Anten motorları yumuşak ve mekanik olarak makul hızlarda hareket eder.
+4. Anten uyduyu takip eder.
+5. Görüş hattı ve bağlantı durumu görselleştirilir.
+6. Bağlantı kurulması için uygun görüş ve donanım koşulları aranır.
+
+Kullanıcı anteni manuel veya otomatik moda alabilmeli.
+
+Anten hareketleri yalnızca dekoratif animasyon olmamalı. Açı değerleri ile modelin gerçek dönüşü tutarlı olmalı.
+
+---
+
+# 5. UYDU HABERLEŞME VE VERİ ALIM SİMÜLASYONU
+
+Bu bölüm gerçek bir yer istasyonu mantığıyla çalışmalı.
+
+## Haberleşme aşamaları
+
+1. Uydu geçişinin hesaplanması
+2. Görüş hattının oluşması
+3. Antenin uyduya yönelmesi
+4. RF sinyalinin algılanması
+5. Sinyal kilidinin kurulması
+6. Veri çerçevelerinin alınması
+7. Hata kontrolü
+8. Paketlerin yeniden birleştirilmesi
+9. Ham verinin kaydedilmesi
+10. Görüntü ürününün oluşturulması
+11. AgroMax analiz hattına aktarılması
+
+Bu aşamalar gerçek zamanlı durum makinesiyle temsil edilmeli.
+
+## Haberleşme göstergeleri
+
+- Uydu adı
+- Geçiş başlangıcı
+- Geçiş bitişi
+- Elevasyon
+- Azimut
+- Sinyal seviyesi
+- SNR
+- BER veya uygun hata metriği
+- Alınan veri miktarı
+- Veri aktarım hızı
+- Paket kaybı
+- Tamamlanma oranı
+- Bağlantı durumu
+- İşleme kuyruğu
+
+Değerler birbirinden bağımsız rastgele sayılar olmamalı.
+
+Örneğin:
+
+- Uydu ufkun altındaysa bağlantı kurulmamalı.
+- Anten yanlış yöne bakıyorsa sinyal zayıflamalı.
+- Donanım uyumsuzsa bağlantı reddedilmeli.
+- Paket kaybı artarsa veri aktarımı etkilenmeli.
+- Uydu geçişi bittiğinde alım sona ermeli.
+- Eksik veri varsa analiz süreci bunu açıkça belirtmeli.
+
+## Simülasyon ve gerçek donanım ayrımı
+
+İki mod geliştir:
+
+**A. Simülasyon modu**
+
+Gerçek donanım gerektirmeden tüm sistem çalışmalı.
+
+Gerçekçi senaryolar, örnek uydu verileri ve fiziksel koşullara bağlı simüle edilmiş telemetri kullanılmalı.
+
+**B. Gerçek veri modu**
+
+Gelecekte şu bileşenlerle entegrasyon sağlanabilmeli:
+
+- SDR cihazları
+- Uygun DVB-S2 alıcıları
+- Uydu anten kontrol sistemleri
+- Yerel RF alıcı servisleri
+- Dosya izleme servisleri
+- Yetkili veri alım yazılımları
+
+Gerçek donanım bağlantısı yoksa açıkça "Bağlı değil" göster.
+
+Sentinel-2, Landsat veya ticari uydu yayınlarının yetkisiz biçimde çözülmesini sağlayan sahte ya da uydurma bir protokol oluşturma.
+
+---
+
+# 6. UYDU GÖRÜNTÜSÜ İŞLEME MOTORU
+
+Bu bölümde yer istasyonundan gelen veri AgroMax'ın kullanabileceği tarımsal analiz ürünlerine dönüştürülmeli.
+
+## Veri işleme hattı
+
+**Ham veri → Ürün oluşturma → Bant ayrıştırma → Kalite kontrol → Coğrafi konumlandırma → Bulut maskesi → İndeks hesaplama → Parsel analizi → Görev önerisi**
+
+Simülasyon modunda önceden hazırlanmış gerçekçi multispektral örnek veri setleri kullan.
+
+Her veri setinin bantları, çözünürlüğü ve coğrafi koordinatları tutarlı olmalı.
+
+Sadece rastgele yeşil ve kırmızı lekeler çizip NDVI sonucu olarak gösterme.
+
+## Desteklenecek analizler
+
+### NDVI
+Bitki örtüsü yoğunluğu ve gelişim durumunu incelemek için.
+
+NDVI = (NIR - RED) / (NIR + RED)
+
+### NDMI
+Bitki örtüsünün nem durumuna ilişkin gösterge üretmek için.
+
+NDMI = (NIR - SWIR) / (NIR + SWIR)
+
+### NDRE
+Uygun red-edge ve NIR bantları mevcut olduğunda hesaplanmalı.
+
+### NDWI
+Kullanılan bant kombinasyonu açıkça belirtilerek uygun su göstergesi hesaplanmalı.
+
+### RGB görüntü
+Doğal renkli görüntüleme.
+
+### False Color
+NIR gibi bantların kullanıldığı alternatif görüntüleme.
+
+### Değişim analizi
+İki farklı tarihli görüntünün karşılaştırılması.
+
+## Bilimsel doğruluk
+
+- Kullanılan bantlar veri kaynağıyla uyumlu olmalı.
+- Bulutlu ve geçersiz pikseller analiz dışında bırakılmalı.
+- Farklı çözünürlüklü bantlar uygun şekilde hizalanmalı.
+- NDVI tek başına hastalık teşhisi olarak sunulmamalı.
+- NDMI doğrudan ölçülmüş toprak nemi olarak gösterilmemeli.
+- Düşük güvenilirlikteki analizler işaretlenmeli.
+- Gerçek uydu verisi ile örnek/sentetik veri net biçimde ayrılmalı.
+
+## Analiz sonuçları
+
+Kullanıcı seçili tarla için şunları görebilmeli:
+
+- Ortalama NDVI
+- Minimum / maksimum NDVI
+- NDMI dağılımı
+- Düşük ve yüksek indeksli bölgeler
+- Bulut oranı
+- Geçerli piksel sayısı
+- Görüntü tarihi
+- Kaynak uydu
+- Mekânsal çözünürlük
+- Analiz güvenilirliği
+- Öncelikli incelenmesi önerilen bölgeler
+
+Analiz tamamlandığında sistem otomatik olarak drone görev planlama modülüne sonuç gönderebilmeli.
+
+---
+
+# 7. HARİTA VE PARSEL YÖNETİMİ
+
+Profesyonel GIS özelliklerine sahip bir harita oluştur.
+
+## Harita özellikleri
+
+- Uydu görüntüsü taban haritası
+- 2D / 3D görünüm geçişi
+- Gerçek koordinat sistemi
+- Parsel sınırları
+- GeoJSON içe aktarma
+- Kullanıcının haritada poligon çizmesi
+- Parsel alanı hesaplama
+- Multispektral katmanlar
+- Risk bölgeleri
+- Drone rotası
+- Drone konumu
+- Görev noktaları
+- Uçuşa kapalı bölgeler
+- Yükseklik bilgisi
+
+## Harita katmanları
+
+Kullanıcı şu katmanları açıp kapatabilmeli:
+
+- RGB
+- NDVI
+- NDMI
+- NDRE
+- Bulut maskesi
+- Analiz öncelik bölgeleri
+- Drone görev rotası
+- Gerçekleşen uçuş izi
+- Fotoğraf çekim noktaları
+
+Her katmanda:
+
+- Aç/kapat
+- Opaklık
+- Renk skalası
+- Lejant
+- Tarih
+- Veri kaynağı
+
+kontrolleri olmalı.
+
+Haritadaki raster katmanlar parselin gerçek koordinatlarına doğru yerleştirilmeli.
+
+---
+
+# 8. UYDU ANALİZİNDEN OTOMATİK DRONE GÖREVİ ÜRETME
+
+Bu, sistemin en önemli işlevlerinden biridir.
+
+Uydu görüntüsü analiz edildiğinde AgroMax, drone'un hangi bölgelere gitmesi gerektiğini belirleyebilmeli.
+
+Ancak her düşük NDVI alanı otomatik olarak hastalık veya sulama problemi olarak değerlendirilmemeli.
+
+Sistem bu bölgeleri **yerinde doğrulama gerektiren alanlar** olarak işaretlemeli.
+
+## Örnek senaryo
+
+Bir tarla analiz edildi.
+
+AgroMax şu sonucu buldu:
+
+- Bölge A: Normal bitki gelişimi
+- Bölge B: Çevresine göre düşük NDVI
+- Bölge C: Düşük NDMI
+- Bölge D: Bulut nedeniyle belirsiz veri
+
+Sistem bu sonuçları değerlendirerek drone için görev önerisi oluşturmalı.
+
+Örneğin:
+
+**Görev: Öncelikli Tarla İncelemesi**
+
+Hedefler:
+1. Bölge B üzerinde ayrıntılı RGB görüntüleme
+2. Bölge C üzerinde ikinci kontrol uçuşu
+3. Bölge D için gerekirse alternatif gözlem
+4. Toplanan görüntülerin AgroMax'a aktarılması
+
+Görev önerisi oluşturulurken kullanıcıya neden bu bölgelerin seçildiği açıklanmalı.
+
+## Görev planlama algoritması
+
+Sistem şu unsurları değerlendirmeli:
+
+- Drone kalkış noktası
+- Parsel sınırları
+- Hedef bölgeler
+- Drone menzili
+- Tahmini batarya tüketimi
+- Uçuş hızı
+- Görev irtifası
+- Kamera görüş açısı
+- Görüntü örtüşme oranı
+- Uçuşa kapalı alanlar
+- Engeller
+- Güvenli dönüş için batarya rezervi
+
+Drone için uygun görev rotası hesaplanmalı.
+
+Desteklenen görev türleri:
+
+**1. Alan tarama**
+Parsel üzerinde düzenli tarama rotası.
+
+**2. Hedef bölge incelemesi**
+Analiz sonucu işaretlenen alanların ziyaret edilmesi.
+
+**3. Fotogrametri uçuşu**
+Görüntü örtüşmesine göre planlanan fotoğraf toplama görevi.
+
+**4. Kontrol uçuşu**
+Önceden tespit edilmiş anomalilerin yeniden incelenmesi.
+
+**5. Simüle edilmiş hassas tarım uygulaması**
+Yalnızca sanal ortamda, önceden tanımlanmış bölgelerde değişken oranlı uygulama mantığının gösterilmesi.
+
+## Rota oluşturma
+
+Alan taramada uygun lawnmower/boustrophedon rota algoritması kullanılmalı.
+
+Hedef noktalar arasında rota optimizasyonu yapılmalı.
+
+Uçuş sınırları kontrol edilmeli.
+
+Görev tamamlanamayacaksa sistem bunu kullanıcıya açıklamalı.
+
+Gerçek uçuşta uygulanması mümkün olmayan rota, geçerli görev olarak gösterilmemeli.
+
+---
+
+# 9. GERÇEKÇİ 3D DRONE SİMÜLASYONU
+
+Harita üzerinde yüksek kaliteli bir tarımsal drone modeli oluştur.
+
+Drone basit bir işaretçi veya havada kayan ikon olmamalı.
+
+## Drone modeli
+
+- Gerçekçi gövde
+- Motorlar
+- Pervaneler
+- Kamera/gimbal
+- Sensörler
+- Batarya
+- İniş takımı
+- Navigasyon ışıkları
+
+Farklı drone profilleri tanımlanabilmeli:
+
+- RGB haritalama drone'u
+- Multispektral kamera taşıyan drone
+- Ayrıntılı gözlem drone'u
+- Tarımsal uygulama drone'u
+
+Her profilin sensörleri ve uçuş özellikleri farklı olmalı.
+
+## Uçuş fiziği
+
+Drone:
+
+1. Kalkış hazırlığı yapmalı.
+2. Motorlarını başlatmalı.
+3. Yumuşak şekilde yükselmeli.
+4. Görev irtifasına ulaşmalı.
+5. Planlanan rotayı takip etmeli.
+6. Dönüşlerde yönünü değiştirmeli.
+7. Hedef bölgelerde fotoğraf toplamalı.
+8. Batarya tüketmeli.
+9. Görev tamamlandığında kalkış noktasına dönmeli.
+10. Güvenli şekilde iniş yapmalı.
+
+Animasyon yalnızca iki koordinat arasında doğrusal hareket olmamalı.
+
+İvme, hız sınırı, dönüş yarıçapı, yükselme/alçalma hızı ve batarya modeli gibi unsurlar tutarlı şekilde simüle edilmeli.
+
+## Drone telemetrisi
+
+Canlı panelde:
+
+- Enlem
+- Boylam
+- İrtifa
+- Yer hızı
+- Dikey hız
+- Yön
+- Batarya yüzdesi
+- Tahmini kalan uçuş süresi
+- Görev ilerlemesi
+- GPS durumu
+- Bağlantı kalitesi
+- Uçuş modu
+- Kamera durumu
+- Toplanan görüntü sayısı
+
+gösterilmeli.
+
+Bu değerler drone'un gerçek simülasyon durumundan hesaplanmalı.
+
+---
+
+# 10. DRONE İLE AGROMAX HABERLEŞMESİ
+
+Uydu yer istasyonu ile drone haberleşmesi birbirinden ayrı sistemlerdir.
+
+Mimariyi buna göre oluştur.
+
+**Uydu → Yer istasyonu → AgroMax sunucusu**
+
+ve
+
+**AgroMax sunucusu → Drone yer kontrol sistemi → Drone**
+
+Drone'un doğrudan Sentinel-2'ye bağlandığını varsayma.
+
+## Simülasyon haberleşmesi
+
+- AgroMax görev paketini oluşturur.
+- Drone kontrol sistemi paketi alır.
+- Görev doğrulanır.
+- Drone görev durumunu bildirir.
+- Telemetri akışı başlar.
+- Kamera verileri toplanır.
+- Drone görevi tamamlar.
+- Görüntüler yerel sisteme aktarılır.
+
+Simülasyon içinde bağlantı kesintisi, gecikme ve paket kaybı senaryoları bulunmalı.
+
+## Gelecekteki gerçek entegrasyon
+
+Mimari şu sistemlere genişletilebilir olmalı:
+
+- MAVLink
+- MAVSDK
+- PX4
+- ArduPilot
+- QGroundControl
+- Desteklenen DJI görev formatları ve resmî SDK'lar
+
+DJI uyumluluğunu bütün modellere otomatik olarak uygulanabilir varsayma.
+
+Gerçek drone komutları, yalnızca desteklenen donanım ve resmî arayüzlerle uygulanmalı.
+
+**Önemli güvenlik kuralı:** Simülasyonda tam otonom uçuş yapılabilir. Gerçek bir drone'a görev gönderilmesi veya uçuş başlatılması için operatör onayı, görev doğrulaması, coğrafi sınır kontrolü ve emniyet kontrolleri zorunlu olmalı.
+
+---
+
+# 11. CANLI OPERASYON SENARYOSU
+
+Kullanıcı tek bir senaryoyu baştan sona çalıştırabilmeli.
+
+## Senaryo adı
+**AgroMax | Uydu Verisinden Otonom Tarla İncelemesine**
+
+### Aşama 1: Uydu seçimi
+Kullanıcı bir uydu profili seçer.
+
+3D Dünya üzerinde uydu ve yörüngesi görünür.
+
+### Aşama 2: Yer istasyonu hazırlığı
+Çanak anten seçilen senaryoya uygun şekilde hazırlanır.
+
+Anten uyduya yönelir.
+
+### Aşama 3: Veri alımı
+Uydu görüş alanına girer.
+
+Bağlantı kurulması için gerekli koşullar değerlendirilir.
+
+Uygun simülasyon senaryosunda veri paketleri alınmaya başlanır.
+
+### Aşama 4: Verinin AgroMax'a aktarılması
+Alınan veri yerel sunucuya gönderilir.
+
+İşleme kuyruğu ve ilerleme gösterilir.
+
+### Aşama 5: Multispektral analiz
+Bantlar işlenir.
+
+NDVI ve NDMI hesaplanır.
+
+Haritada analiz katmanları oluşturulur.
+
+### Aşama 6: Öncelikli bölgelerin belirlenmesi
+AgroMax dikkat gerektiren bölgeleri belirler.
+
+Her bölge için analiz gerekçesi gösterilir.
+
+### Aşama 7: Drone görevi oluşturma
+Sistem otomatik görev önerir.
+
+Haritada uçuş rotası çizilir.
+
+Tahmini uçuş süresi, mesafe ve batarya tüketimi hesaplanır.
+
+### Aşama 8: Drone uçuşu
+Kullanıcı simülasyon görevini başlatır.
+
+Drone 3D ortamda kalkış yapar ve rotayı izler.
+
+Hedef bölgelerde görüntü toplar.
+
+### Aşama 9: Veri aktarımı
+Drone topladığı verileri AgroMax'a gönderir.
+
+Görev çıktıları kaydedilir.
+
+### Aşama 10: Operasyon raporu
+Sistem görev sonunda kapsamlı rapor oluşturur.
+
+Raporda:
+
+- Kullanılan uydu veri seti
+- Yer istasyonu bağlantı özeti
+- Veri işleme süresi
+- Analiz edilen parsel alanı
+- Belirlenen öncelikli bölgeler
+- Oluşturulan drone rotası
+- Gerçekleşen uçuş mesafesi
+- Uçuş süresi
+- Toplanan görüntü sayısı
+- Görev başarı durumu
+- Uyarılar
+- Önerilen sonraki işlemler
+
+bulunmalı.
+
+---
+
+# 12. SİMÜLASYON KONTROL PANELİ
+
+Kullanıcı tüm operasyonu kontrol edebilmeli.
+
+Butonlar:
+
+- Simülasyonu Başlat
+- Duraklat
+- Devam Et
+- Sıfırla
+- Sonraki Aşama
+- Otomatik Çalıştır
+- Manuel Kontrol
+- Senaryoyu Değiştir
+- Hata Senaryosu Oluştur
+- Görev Raporunu Aç
+
+Simülasyon hızı:
+
+- 0.5×
+- 1×
+- 2×
+- 5×
+- 10×
+
+Hızlandırma yapıldığında uydu geçişi, veri alımı, işleme ve drone uçuşunun bütün zaman hesaplamaları tutarlı kalmalı.
+
+## Hata senaryoları
+
+Kullanıcı şunları test edebilmeli:
+
+1. Uydu görüş hattı kaybı
+2. Anten yönlendirme hatası
+3. RF sinyalinin zayıflaması
+4. Veri paketlerinin kaybolması
+5. Eksik uydu görüntüsü
+6. Yüksek bulut oranı
+7. Yerel sunucu bağlantı kesintisi
+8. Drone bağlantı kaybı
+9. Kritik batarya seviyesi
+10. Görev rotasında yasak bölge
+
+Her hata için sistem mantıklı tepki vermeli.
+
+Örneğin drone bataryası kritik seviyeye ulaşırsa görev iptal edilip güvenli dönüş prosedürü simüle edilmeli.
+
+---
+
+# 13. GERÇEK ZAMANLI VERİ AKIŞI GÖRSELLEŞTİRMESİ
+
+Kullanıcı verinin nereden nereye gittiğini net olarak görebilmeli.
+
+Profesyonel bir veri akış ekranı oluştur.
+
+Düğümler:
+
+- Uydu
+- Çanak anten
+- RF alıcı
+- Veri çözümleyici
+- Yerel sunucu
+- Görüntü işleme motoru
+- AgroMax analiz sistemi
+- Görev planlama motoru
+- Drone kontrol sistemi
+- Drone
+
+Bağlantı çizgileri veri akış durumuna göre değişmeli.
+
+Örneğin:
+
+- Bekliyor
+- Bağlanıyor
+- Aktif
+- İşleniyor
+- Tamamlandı
+- Hata
+
+Veri paketleri düğümler arasında görsel olarak hareket edebilmeli.
+
+Ancak veri akışı görselleştirmesi gerçek simülasyon durumuna bağlı olmalı. Sürekli tekrar eden bağımsız bir animasyon olmamalı.
+
+---
+
+# 14. ÖRNEK VERİLER VE ÇALIŞAN DEMO
+
+Uygulama ilk açıldığında boş ve işlevsiz görünmemeli.
+
+İçinde tam olarak çalıştırılabilen örnek senaryo bulunsun.
+
+Örnek senaryoda:
+
+- Bir tarımsal parsel
+- Parselin gerçekçi koordinatları
+- Bir multispektral örnek görüntü
+- Birkaç farklı bitki gelişim bölgesi
+- Bir uydu geçiş senaryosu
+- Bir yer istasyonu
+- Bir drone
+- Bir görev planı
+
+bulunmalı.
+
+Örnek verilerin simülasyon verisi olduğu açıkça gösterilmeli.
+
+Kullanıcı herhangi bir gerçek donanım bağlamadan şu süreci çalıştırabilmeli:
+
+**Uydu seç → Anteni yönlendir → Veriyi al → Analizi başlat → Haritayı incele → Drone görevini oluştur → Otonom uçuşu izle → Raporu görüntüle.**
+
+Bu akışın tamamı çalışmalı.
+
+---
+
+# 15. 3D GÖRSEL KALİTE STANDARTLARI
+
+Bu projede görsel kalite çok önemli.
+
+İstediğim kalite basit bir öğrenci projesi veya hazır dashboard şablonu değil.
+
+## Özellikle dikkat et
+
+- Gerçekçi 3D uydu modeli
+- Gerçekçi parabolik anten
+- Mekanik olarak doğru anten dönüşleri
+- Profesyonel yer istasyonu
+- Detaylı drone modeli
+- Kaliteli tarla haritası
+- Coğrafi olarak doğru katmanlar
+- Gerçekçi kamera hareketleri
+- Akıcı geçişler
+- Sinematik ama işlevsel sahne kompozisyonu
+- Kullanıcı tarafından kontrol edilebilen 3D kamera
+
+Mümkün olduğunda uygun lisanslı GLB/GLTF modeller için destek oluştur.
+
+Harici modeller mevcut değilse geçici modeller kullanabilirsin, ancak bunları gerçek varlıklarla kolayca değiştirilebilecek şekilde yapılandır.
+
+Kullanıcıya hangi modellerin geçici olduğu belirtilmeli.
+
+## Kamera modları
+
+- Dünya görünümü
+- Uydu takip görünümü
+- Yer istasyonu yakın plan
+- Anten mekanik görünümü
+- Veri akış görünümü
+- Tarla haritası
+- Drone takip kamerası
+- Drone üzerindeki kamera
+- Serbest kamera
+
+Kamera geçişleri düzgün olmalı.
+
+---
+
+# 16. PERFORMANS VE GÜVENİLİRLİK
+
+Uygulama yüksek kaliteli görünürken performanslı da çalışmalı.
+
+- Lazy loading
+- 3D model LOD sistemi
+- Optimize edilmiş materyaller
+- Gereksiz render işlemlerinin azaltılması
+- Büyük veri katmanlarının verimli yüklenmesi
+- Hata yakalama
+- Bağlantı durumu yönetimi
+- Veri önbelleği
+- Bellek sızıntılarının önlenmesi
+- Ağ bağlantısı kesildiğinde simülasyonun çalışmaya devam etmesi
+
+Gerçek harita servislerinin internet gerektirebileceğini unutma.
+
+İnternetsiz çalışma modunda önceden yüklenmiş harita ve örnek veri paketleri kullanılmalı.
+
+---
+
+# 17. KOD KALİTESİ VE PROJE YAPISI
+
+Projeyi tek bir devasa dosyaya yazma.
+
+Modüler bir klasör yapısı oluştur.
+
+Önerilen modüller:
+
+- `satellite/`
+- `ground-station/`
+- `rf-communication/`
+- `data-ingestion/`
+- `multispectral-processing/`
+- `gis/`
+- `mission-planning/`
+- `drone-simulation/`
+- `telemetry/`
+- `reporting/`
+- `ui/`
+- `shared/`
+
+Her modülün açık sorumluluğu olmalı.
+
+Simülasyon motoru ile görsel arayüz birbirinden ayrılmalı.
+
+Aynı simülasyon durumu bütün panellerde tutarlı görünmeli.
+
+İşlevsiz sahte API çağrıları oluşturma.
+
+Gerçek entegrasyonlar için adaptör arayüzleri tanımla.
+
+---
+
+# 18. GELİŞTİRME ÖNCELİKLERİ
+
+Her şeyi yalnızca görsel olarak göstermeye çalışıp çalışan sistem üretmemek kabul edilemez.
+
+Aşağıdaki sırayla ilerle:
+
+**Faz 1: Çalışan temel sistem**
+- Ana arayüz
+- 3D Dünya
+- Yer istasyonu
+- Uydu geçiş simülasyonu
+- Anten yönlendirme
+- Veri alım durum makinesi
+
+**Faz 2: Veri ve harita**
+- Multispektral örnek veri
+- NDVI / NDMI hesaplaması
+- Parsel haritası
+- Risk bölgeleri
+- Katman kontrolleri
+
+**Faz 3: Drone görev sistemi**
+- Otomatik görev önerisi
+- Rota hesaplama
+- 3D drone uçuşu
+- Telemetri
+- Görev raporu
+
+**Faz 4: İleri seviye**
+- Hata senaryoları
+- Gerçek veri adaptörleri
+- Donanım entegrasyon mimarisi
+- Gelişmiş performans optimizasyonu
+- Profesyonel görsel iyileştirmeler
+
+Her fazdan sonra çalışan parçaları koru.
+
+---
+
+# 19. KABUL TESTLERİ
+
+Proje tamamlandı sayılmadan önce aşağıdaki testleri gerçekleştir:
+
+1. Uydu ufkun altındayken veri alımı başlamıyor mu?
+2. Uyumsuz anten veya alıcı seçildiğinde doğru uyarı çıkıyor mu?
+3. Antenin 3D hareketi azimut/elevasyon değerleriyle eşleşiyor mu?
+4. Veri transferi tamamlanmadan analiz başlamıyor mu?
+5. NDVI/NDMI gerçekten bant değerlerinden hesaplanıyor mu?
+6. Harita katmanları doğru koordinatlarda mı?
+7. Drone görevi analiz sonuçlarına göre oluşturuluyor mu?
+8. Drone rota noktalarını doğru sırayla ziyaret ediyor mu?
+9. Batarya tüketimi uçuşla tutarlı mı?
+10. Drone bağlantı kaybında güvenli davranış uygulanıyor mu?
+11. Simülasyon durdurulup devam ettirilebiliyor mu?
+12. Görev raporu gerçek simülasyon kayıtlarından mı oluşuyor?
+13. İnternet kesilince yerel simülasyon çalışmaya devam ediyor mu?
+14. Gerçek donanım bağlı değilken sistem yanlışlıkla bağlı olduğunu iddia ediyor mu?
+15. Bütün ana kontroller gerçekten işlevsel mi?
+
+Testlerde sorun bulunursa düzelt.
+
+---
+
+# 20. SON TALİMAT
+
+AgroMax için etkileyici bir 3D animasyon değil, **gerçek bir uydu yer istasyonu ile tarımsal drone görev kontrol sisteminin nasıl birlikte çalışabileceğini gösteren, teknik olarak tutarlı ve uçtan uca çalışan bir simülasyon** geliştir.
+
+En önemli kullanıcı deneyimi şu olmalı:
+
+Kullanıcı 3D Dünya üzerinde bir uydu seçer.
+
+Yer istasyonundaki çanak anten uyduyu takip eder.
+
+Uydu veri alımı başlar.
+
+Veri AgroMax'ın yerel sistemine aktarılır.
+
+Multispektral analiz gerçekleştirilir.
+
+Haritada incelenmesi gereken bölgeler belirlenir.
+
+AgroMax otomatik drone görevi oluşturur.
+
+Drone 3D haritada kalkış yapar, rotasını takip eder ve gerekli görüntüleri toplar.
+
+Görev tamamlanır ve sistem rapor oluşturur.
+
+**Bütün bu süreç kullanıcı tarafından canlı olarak izlenebilmeli ve kontrol edilebilmelidir.**
+
+Teknik doğruluktan ödün verme. Simülasyon, gerçek veri ve gelecekteki donanım entegrasyonlarını birbirinden açıkça ayır.
+
+Şimdi projeyi oluşturmaya başla. Önce çalışan uygulamayı kur, ardından görsel kaliteyi ve gelişmiş modülleri tamamla. Yalnızca plan veya açıklama üretmekle yetinme.

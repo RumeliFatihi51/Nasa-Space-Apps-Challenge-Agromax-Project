@@ -1,0 +1,99 @@
+name: AgroMax QGroundControl Windows
+on:
+  workflow_dispatch:
+  push:
+    branches: ['**']
+    paths:
+      - .github/workflows/qgroundcontrol-windows.yml
+      - tools/qgroundcontrol/**
+      - public/brand/agromax-*
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  windows:
+    permissions:
+      contents: write
+      actions: read
+    runs-on: windows-2022
+    timeout-minutes: 150
+    steps:
+      - name: Checkout QGroundControl 5.1.5
+        uses: actions/checkout@v7
+        with:
+          repository: mavlink/qgroundcontrol
+          ref: 3a67d31f0c36bf3fe38ec52970d250a89d0aaf67
+          fetch-depth: 0
+          persist-credentials: false
+          fetch-tags: true
+      - name: Checkout AgroMax branding
+        uses: actions/checkout@v7
+        with:
+          path: agromax
+          persist-credentials: false
+      - name: Apply branding
+        shell: pwsh
+        run: |
+          node agromax/tools/qgroundcontrol/brand.mjs .
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node agromax/tools/qgroundcontrol/desktop.mjs .
+          exit $LASTEXITCODE
+      - name: Setup the upstream Windows toolchain
+        uses: ./.github/actions/build-setup
+        with:
+          qt-host: windows
+          qt-arch: win64_msvc2022_64
+          aqt-source: git+https://github.com/miurahr/aqtinstall.git@8d961e61720b3c06583517fbc68d57ec0a4e9f95
+          build-type: Release
+      - uses: ./.github/actions/cmake-configure
+        with:
+          build-dir: ${{ runner.temp }}/agromax-qgc
+          stable: 'true'
+          extra-args: >-
+            -DQGC_APP_NAME=AgroMax-QGroundControl
+            -DQGC_ORG_NAME=AgroMax
+            -DQGC_ENABLE_GST_VIDEOSTREAMING=ON
+      - uses: ./.github/actions/cmake-build
+        with:
+          build-dir: ${{ runner.temp }}/agromax-qgc
+      - uses: ./.github/actions/cmake-install
+        with:
+          build-dir: ${{ runner.temp }}/agromax-qgc
+      - name: Verify the installer payload and package desktop integration
+        shell: pwsh
+        run: |
+          $build = Join-Path $env:RUNNER_TEMP 'agromax-qgc'
+          $installer = @(Get-ChildItem -LiteralPath $build -Filter '*installer*.exe' -File)
+          if ($installer.Count -ne 1) { throw 'Expected exactly one Windows installer.' }
+          $test = Join-Path $env:RUNNER_TEMP 'agromax-qgc-install-test'
+          $result = Start-Process -FilePath $installer[0].FullName -ArgumentList '/S', "/D=$test" -Wait -PassThru -WindowStyle Hidden
+          if ($result.ExitCode -ne 0 -or !(Test-Path -LiteralPath (Join-Path $test 'bin/AgroMax-QGroundControl.exe'))) {
+            throw 'The installer did not produce a branded executable.'
+          }
+          $command = (Get-Item 'HKLM:\Software\Classes\agromax-qgc\shell\open\command').GetValue('')
+          if ($command -ne ('"' + (Join-Path $test 'bin\AgroMax-QGroundControl.exe') + '"')) {
+            throw 'The installer did not register the fixed web-to-desktop command.'
+          }
+          $out = New-Item (Join-Path $env:RUNNER_TEMP 'agromax-groundcontrol-artifact') -ItemType Directory
+          Copy-Item -LiteralPath $installer[0].FullName -Destination (Join-Path $out.FullName 'AgroMax-QGroundControl-Windows-x64.exe')
+          Copy-Item ./agromax/tools/qgroundcontrol/Register-AgroMaxGroundControl.ps1 -Destination $out.FullName
+      - name: Verify the installed GUI starts
+        uses: ./.github/actions/verify-executable
+        with:
+          binary-path: ${{ runner.temp }}/agromax-qgc-install-test/bin/AgroMax-QGroundControl.exe
+          type: exe
+      - name: Publish the verified installer
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tag = 'agromax-desktop-v5.1.5-windows-v1'
+          $out = Join-Path $env:RUNNER_TEMP 'agromax-groundcontrol-artifact'
+          $installer = Join-Path $out 'AgroMax-QGroundControl-Windows-x64.exe'
+          $checksum = Join-Path $out 'SHA256SUMS.txt'
+          ((Get-FileHash -LiteralPath $installer).Hash.ToLowerInvariant() + '  AgroMax-QGroundControl-Windows-x64.exe') |
+            Set-Content -LiteralPath $checksum -Encoding ascii
+          gh release create $tag $installer $checksum (Join-Path $out 'Register-AgroMaxGroundControl.ps1') --repo $env:GITHUB_REPOSITORY --verify-tag --latest=false --title 'AgroMax Desktop with native QGroundControl 5.1.5' --notes 'AgroMax and native QGroundControl in one application window. Download .plan in AgroMax, then use the downloaded-plan button to import it into the native Plan view.'
+          exit $LASTEXITCODE

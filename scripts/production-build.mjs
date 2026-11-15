@@ -1,5 +1,6 @@
 import { build } from "esbuild";
 import { build as buildClient } from "vite";
+import './ground-station-build.mjs';
 
 await build({
   entryPoints: ["server/vercel-entry.js"],

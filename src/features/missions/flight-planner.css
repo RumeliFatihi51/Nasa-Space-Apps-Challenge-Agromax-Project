@@ -1,0 +1,31 @@
+.flight-planner { min-width: 0; }
+.flight-planner > header { display: flex; justify-content: space-between; align-items: end; flex-wrap: wrap; gap: 18px; margin-bottom: 20px; }
+.flight-planner h1 { font-size: clamp(2rem, 4vw, 3.5rem); margin: 0; letter-spacing: -.04em; }
+.flight-planner > header p { margin: 6px 0; }
+.flight-planner > header label { display: grid; gap: 6px; width: min(100%, 290px); }
+.flight-planner > header select { width: 100%; min-width: 0; }
+.flight-desktop-app { display: flex; align-items: start; flex-wrap: wrap; gap: 12px; padding: 14px; margin-bottom: 16px; border: 1px solid #cbd2c0; border-radius: 10px; background: #f4f5eb; color: #234031; }
+.flight-desktop-app > div { flex: 1 1 14rem; min-width: 0; }
+.flight-desktop-app p { margin: 4px 0 6px; }
+.flight-desktop-app summary { cursor: pointer; }
+.flight-desktop-launch { display: inline-flex; align-items: center; min-height: 44px; padding: 0 14px; border-radius: 8px; background: #254b36; color: white; text-decoration: none; }
+.flight-desktop-app :is(a, summary):focus-visible { outline: 2px solid #375d42; outline-offset: 3px; }
+.flight-planner-layout { display: grid; grid-template-columns: minmax(0, 1.8fr) minmax(310px, 1fr); gap: 20px; align-items: start; }
+.flight-planner-map, .flight-planner-settings { min-width: 0; border: 1px solid #d6d4c1; border-radius: 12px; overflow: hidden; background: #faf7ed; }
+.flight-planner-map { position: sticky; top: 12px; }
+.flight-planner-map-note, .flight-planner-settings { padding: 18px; }
+.flight-planner-map-note p { margin: 6px 0; color: #526047; }
+.flight-planner .qgc-plan p { font-size: .84rem; }
+.flight-planner .qgc-plan label { font-size: .85rem; }
+.flight-planner .qgc-input-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.flight-planner .qgc-plan input, .flight-planner .qgc-plan select, .flight-planner button { min-height: 44px; }
+.px-workspace[data-page="flight"] .px-main-grid { grid-template-columns: minmax(0, 1fr); }
+.px-workspace[data-page="flight"] .px-main-grid > section { min-width: 0; }
+.px-workspace[data-page="flight"] .px-side-panel { display: none; }
+@media(max-width: 950px) {
+  .flight-planner-layout { grid-template-columns: minmax(0, 1fr); }
+  .flight-planner-map { position: static; }
+}
+@media(max-width: 420px) {
+  .flight-planner .qgc-input-grid { grid-template-columns: minmax(0, 1fr); }
+}

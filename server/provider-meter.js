@@ -1,11 +1,9 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 const scope = new AsyncLocalStorage();
-
 /** @param {(event: {operation:string,durationMs:number,httpStatus:number|null})=>Promise<void>} sink @param {()=>Promise<any>} work */
 export function withProviderMeter(sink, work) {
   return scope.run(sink, work);
 }
-
 /** Only static operation names and response metadata enter the meter. Never URL queries, credentials or bodies. */
 export async function meterProvider(operation, work) {
   const started = performance.now();

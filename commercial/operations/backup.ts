@@ -40,9 +40,11 @@ const previousTables = [
 ] as const;
 const requestTables = [...previousTables, "analysis_requests"] as const;
 const claimTables = [...requestTables, "analysis_claims"] as const;
-const tables = [...claimTables, "farm_platform_records", "farm_platform_revisions"] as const;
+const historyTables = [...claimTables, "farm_platform_records", "farm_platform_revisions"] as const;
+const tables = [...historyTables, "terra_brain.datasets", "terra_brain.jobs", "terra_brain.events"] as const;
 const magic = Buffer.from("AGROMAX_BACKUP_V1\n"),
-  schemaVersion = "commercial-schema-0008";
+  schemaVersion = "commercial-schema-0009";
+const qualified = (table: string) => table.split(".").map(part => `"${part}"`).join(".");
 const canonical = (value: unknown): string =>
   JSON.stringify(value, (_key, v) => (typeof v === "bigint" ? String(v) : v));
 type Snapshot = {
@@ -60,13 +62,19 @@ export async function encryptedBackup(store: Store, passphrase: string) {
   };
   await store.transaction(async (tx) => {
     await tx.query("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ");
+    await tx.query("SET LOCAL row_security = off");
     for (const table of tables)
       snapshot.tables[table] = (
-        await tx.query(`SELECT * FROM "${table}"`)
+        await tx.query(`SELECT * FROM ${qualified(table)}`)
       ).rows;
   });
-  const plain = Buffer.from(canonical(snapshot)),
-    salt = randomBytes(16),
+  const plain = Buffer.from(canonical(snapshot));
+  const totalBytes = plain.length + magic.length + 44;
+  if (totalBytes > 100_000_000) {
+    plain.fill(0);
+    throw new Error("Backup exceeds the verified restore size limit.");
+  }
+  const salt = randomBytes(16),
     iv = randomBytes(12),
     key = scryptSync(passphrase, salt, 32),
     cipher = createCipheriv("aes-256-gcm", key, iv);
@@ -116,29 +124,35 @@ export async function restoreEncryptedBackup(
     snapshot.schemaVersion === "commercial-schema-0005" ? previousTables :
     snapshot.schemaVersion === "commercial-schema-0006" ? requestTables :
     snapshot.schemaVersion === "commercial-schema-0007" ? claimTables :
+    snapshot.schemaVersion === "commercial-schema-0008" ? historyTables :
     snapshot.schemaVersion === schemaVersion ? tables : null;
   if (!sourceTables ||
     Object.keys(snapshot.tables).length !== sourceTables.length ||
     sourceTables.some((t) => !Array.isArray(snapshot.tables[t])))
     throw new Error("Backup schema does not match this migration version.");
   await store.transaction(async (tx) => {
+    await tx.query("SET LOCAL row_security = off");
     for (const table of tables) {
-      const current = await tx.query(`SELECT 1 FROM "${table}" LIMIT 1`);
+      const current = await tx.query(`SELECT 1 FROM ${qualified(table)} LIMIT 1`);
       if (current.rows.length)
         throw new Error(
           "Restore target must be empty. No existing records were removed.",
         );
     }
+    const bigIntegers = new Map<string, Set<string>>();
     for (const table of sourceTables) {
-      const allowed = (
+      const [schema, name] = table.includes(".") ? table.split(".") : ["public", table];
+      const columnsInfo = (
         await tx.query(
-          "SELECT column_name FROM information_schema.columns WHERE table_schema='public' AND table_name=$1",
-          [table],
+          "SELECT column_name,data_type FROM information_schema.columns WHERE table_schema=$1 AND table_name=$2",
+          [schema, name],
         )
-      ).rows.map((c) => String(c.column_name));
+      ).rows;
+      const allowed = new Set(columnsInfo.map(row => String(row.column_name)));
+      bigIntegers.set(table, new Set(columnsInfo.filter(row => row.data_type === "bigint").map(row => String(row.column_name))));
       for (const row of snapshot.tables[table]!) {
         const columns = Object.keys(row);
-        if (columns.some((c) => !allowed.includes(c)))
+        if (columns.some((c) => !allowed.has(c)))
           throw new Error("Backup contains an unexpected column.");
         const values = Object.values(row).map((v) =>
           v instanceof Date
@@ -148,19 +162,21 @@ export async function restoreEncryptedBackup(
               : v,
         );
         await tx.query(
-          `INSERT INTO "${table}" (${columns.map((c) => `"${c}"`).join(",")}) VALUES (${columns.map((_, i) => `$${i + 1}`).join(",")})`,
+          `INSERT INTO ${qualified(table)} (${columns.map((c) => `"${c}"`).join(",")}) VALUES (${columns.map((_, i) => `$${i + 1}`).join(",")})`,
           values,
         );
       }
     }
     for (const table of sourceTables) {
-      const actual = (await tx.query(`SELECT * FROM "${table}"`)).rows;
+      const actual = (await tx.query(`SELECT * FROM ${qualified(table)}`)).rows;
+      const integral = bigIntegers.get(table)!;
       const rows = (list: Record<string, unknown>[]) =>
         list
           .map((row) =>
             canonical(
               Object.fromEntries(
-                Object.entries(row).sort(([a], [b]) => a.localeCompare(b)),
+                Object.entries(row).sort(([a], [b]) => a.localeCompare(b)).map(([key, value]) =>
+                  [key, value !== null && integral.has(key) ? BigInt(value as bigint | number | string).toString() : value]),
               ),
             ),
           )

@@ -1,0 +1,107 @@
+.qgc-plan {
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+}
+.qgc-plan h3,
+.qgc-plan p {
+  margin: 0;
+}
+.qgc-plan p {
+  font-size: 0.76rem;
+  line-height: 1.6;
+}
+.qgc-plan form,
+.qgc-plan fieldset,
+.qgc-plan details[open] {
+  display: grid;
+  gap: 12px;
+}
+.qgc-plan fieldset {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+.qgc-plan label {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+  font-size: 0.75rem;
+}
+.qgc-plan input:not([type="checkbox"]),
+.qgc-plan select {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+.qgc-plan .qgc-mode {
+  color: #ffd087;
+  letter-spacing: 0.03em;
+}
+.qgc-input-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+.qgc-result {
+  display: grid;
+  gap: 12px;
+  border-top: 1px solid #7e958b45;
+  padding-top: 14px;
+}
+.qgc-result svg {
+  width: 100%;
+  background: #0b191e;
+  border-radius: 6px;
+}
+.qgc-outline {
+  fill: #345247;
+  stroke: #7f9c8d;
+  stroke-width: 1;
+}
+.qgc-route {
+  fill: none;
+  stroke: #ffd087;
+  stroke-width: 1.5;
+}
+.qgc-result dl {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  margin: 0;
+}
+.qgc-result dt {
+  color: #aec3bd;
+  font-size: 0.7rem;
+}
+.qgc-result dd {
+  margin: 3px 0 0;
+  font-size: 1.2rem;
+  font-variant-numeric: tabular-nums;
+}
+.qgc-plan .qgc-ack {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  line-height: 1.6;
+}
+.qgc-ack input {
+  flex-shrink: 0;
+  margin-top: 4px;
+}
+.qgc-plan [role="alert"] {
+  color: #ffb6a4;
+  padding: 10px;
+  border-left: 2px solid currentColor;
+}
+.qgc-plan details > button {
+  display: block;
+  width: 100%;
+  margin-top: 8px;
+}
+@media (max-width: 380px) {
+  .qgc-input-grid {
+    grid-template-columns: 1fr;
+  }
+}

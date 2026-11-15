@@ -13,7 +13,6 @@ const metric = (id, label, group, formula, description, resolution = 20) => ({
   unit:
     group === "Gözlem geometrisi" ? "derece" : id === "WVP" ? "cm" : "birimsiz",
 });
-
 export const indices = [
   metric(
     "NDVI",
@@ -30,6 +29,11 @@ export const indices = [
     "(s.B08-s.B03)/(s.B08+s.B03)",
     "Yeşil ve yakın kızılötesi bantların farkı.",
     10,
+  ),
+  metric(
+    "WDRVI", "Geniş dinamik aralıklı bitki indeksi", "Bitki gelişimi",
+    "(0.1*s.B08-s.B04)/(0.1*s.B08+s.B04)",
+    "Yoğun örtüde bitki gelişimindeki değişimleri izlemek için NIR ağırlığı 0,1 kullanılır.", 10,
   ),
   metric(
     "EVI",
@@ -189,7 +193,6 @@ export const indices = [
     10,
   ),
 ];
-
 export const bands = [
   "B01",
   "B02",
@@ -217,7 +220,6 @@ export const bands = [
         : 20,
   ),
 );
-
 export const ancillary = [
   metric(
     "AOT",
@@ -236,15 +238,13 @@ export const ancillary = [
     10,
   ),
 ];
-
 export const metrics = [...indices, ...bands, ...ancillary];
 export const qualityBands = ["SCL", "CLD", "SNW", "CLP", "CLM", "dataMask"];
-
 export const observationAngles = [
   ["sunAzimuthAngles", "Güneş azimut açısı"],
   ["sunZenithAngles", "Güneş zenit açısı"],
-  ["viewAzimuthMean", "Ortalama bakı azimut açısı"],
-  ["viewZenithMean", "Ortalama bakı zenit açısı"],
+  ["viewAzimuthMean", "Ortalama bakış azimut açısı"],
+  ["viewZenithMean", "Ortalama bakış zenit açısı"],
 ].map(([id, label]) =>
   metric(
     id,
@@ -255,26 +255,25 @@ export const observationAngles = [
     5000,
   ),
 );
-
+// Provider-specific availability is explicit. An unsupported product is never
+// replaced by a different band (B09 is not a water vapour column measurement).
 export function availableMetrics(provider = "cdse") {
+  if(provider === "agromax-demo")return indices;
   return [
     ...metrics.filter((m) => provider !== "cdse" || m.id !== "WVP"),
     ...observationAngles,
   ];
 }
-
 export function availableQualityBands(provider = "cdse") {
   return qualityBands.filter(
     (id) => provider !== "cdse" || !["CLP", "CLM"].includes(id),
   );
 }
-
 export function metricAvailability(id, provider = "cdse") {
   return provider === "cdse" && id === "WVP"
     ? "Copernicus Data Space Sentinel-2 L2A bu ürün katmanını sunmuyor."
     : null;
 }
-
 export const unavailable = [
   [
     "Sentinel-1 SAR",

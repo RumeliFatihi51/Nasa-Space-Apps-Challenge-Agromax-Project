@@ -77,7 +77,10 @@ export default function Notifications({ onJob, onChanged }) {
             />
             Yalnızca okunmamışlar
           </label>
-          {items && <span>{unread.length} okunmamış · En son 200 olay</span>}
+          {items && <div className="notification-progress">
+            <span>{unread.length} okunmamış · {items.length} alınan olay</span>
+            {items.length > 0 && <progress max={items.length} value={items.length - unread.length} aria-label="Okunan bildirim oranı" />}
+          </div>}
         </div>
         {items === null ? (
           <div className="records-loading" role="status">
@@ -114,7 +117,7 @@ export default function Notifications({ onJob, onChanged }) {
                         className="text-button"
                         onClick={() => {
                           if (!n.readAt) read([n.id]).catch(() => {});
-                          onJob(n.jobId);
+                          onJob(n.jobId, n);
                         }}
                       >
                         İşlem kaydını aç <ArrowUpRight size={14} />
