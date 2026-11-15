@@ -140,6 +140,11 @@ Developed for the **NASA Space Apps Challenge**, AgroMax bridges orbital satelli
 - Production workspace snapshot state and telemetry engine (`commercial/production/`).
 - Provider quota metering and private signed file storage pipeline (`commercial/usage/`, `commercial/files/`).
 - Automated agronomic PDF report generation service with headless background workers (`commercial/reports/`).
+### Phase 5 / Step 24: Landsat Satellite Thermal & Optical Raster Engine
+- USGS Landsat-8 / Landsat-9 thermal infrared and optical raster computation engine (`commercial/analyses/landsat-raster.ts`).
+- End-to-end Landsat scene processing and canopy temperature analysis pipeline (`commercial/analyses/landsat.ts`).
+- Commercial runtime core router, HTTP request dispatchers, and health readiness probes (`commercial/core/`, `commercial/runtime.ts`).
+- Declarative asynchronous analysis and report generation workflows (`workflows/`).
 ---
 
 ### Getting Started
