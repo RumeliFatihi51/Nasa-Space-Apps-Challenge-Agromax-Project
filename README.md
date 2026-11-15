@@ -126,6 +126,10 @@ Developed for the **NASA Space Apps Challenge**, AgroMax bridges orbital satelli
 - React component error boundary with graceful fallback UI for production stability (`src/components/ErrorBoundary.jsx`).
 - Real-time online/offline and sync status indicators with pulse animations (`src/components/ui/StatusIndicator.jsx`, `src/components/ui/status.css`).
 - Accessible confirmation dialog and fieldwork workspace layout primitives (`src/components/ui/ConfirmDialog.tsx`, `src/components/ui/WorkspaceUI.jsx`).
+### Phase 5 / Step 21: Observation & Land Module (Platform Capabilities 1-4)
+- Enterprise field boundary and parcel telemetry service (`commercial/fields/service.ts`).
+- Multi-temporal vegetation index observation range calculation and analytics (`commercial/analyses/range.ts`, `commercial/analyses/observations.ts`).
+- Interactive GIS Field Workspace with dynamic parcel polygon editor, NDVI plot viewer, and geolocation search (`src/features/fields/`).
 ---
 
 ### Getting Started
