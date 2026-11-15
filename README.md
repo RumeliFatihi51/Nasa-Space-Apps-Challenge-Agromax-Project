@@ -130,6 +130,11 @@ Developed for the **NASA Space Apps Challenge**, AgroMax bridges orbital satelli
 - Enterprise field boundary and parcel telemetry service (`commercial/fields/service.ts`).
 - Multi-temporal vegetation index observation range calculation and analytics (`commercial/analyses/range.ts`, `commercial/analyses/observations.ts`).
 - Interactive GIS Field Workspace with dynamic parcel polygon editor, NDVI plot viewer, and geolocation search (`src/features/fields/`).
+### Phase 5 / Step 22: Decision & Action Module (Capabilities 5-8)
+- Automated agricultural dispatch engine and robust backup orchestration (`commercial/operations/`).
+- Offline-first field record synchronization and telemetry cache (`commercial/records/`).
+- MRV (Measurement, Reporting & Verification) agronomic claims verification engine (`commercial/intelligence/`).
+- Interactive water-balance root-zone simulation tool and platform management panels (`src/features/platform/`).
 ---
 
 ### Getting Started
