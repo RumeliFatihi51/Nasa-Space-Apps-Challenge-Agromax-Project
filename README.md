@@ -110,6 +110,10 @@ Developed for the **NASA Space Apps Challenge**, AgroMax bridges orbital satelli
 - Master application shell (`src/components/AppShell.jsx`) featuring responsive desktop sidebar, slim mode toggle, and mobile bottom navigation dock.
 - Accessible focus management, keyboard navigation (Ctrl+K shortcuts, Escape traps), and SVG icon mapping (`src/components/icons.js`).
 
+### Phase 4 / Step 17: Agronomic Season & Field Task Calendar Planner
+- Agronomic field task board with calendar and list views (`src/features/tasks/TaskBoard.jsx`).
+- Interactive modal for scheduling, editing, and dispatching parcel workorders, fertilization, and spraying interventions (`src/features/tasks/TaskModal.jsx`).
+- Dynamic status filtering across pending, in-progress, and completed field operations.
 ---
 
 ### Getting Started
