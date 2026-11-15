@@ -118,6 +118,10 @@ Developed for the **NASA Space Apps Challenge**, AgroMax bridges orbital satelli
 - Master design system documentation for AgroMax's warm editorial agricultural palette (`design-system/agromax/MASTER.md`).
 - Preference and theme context provider supporting ergonomic field themes (`src/components/PreferenceProvider.jsx`).
 - Responsive brand component with modular logo and topography typography (`src/components/Brand.jsx`).
+### Phase 4 / Step 19: Keyboard Quick Search & Command Palette
+- Modal command palette triggered by keyboard shortcuts (Ctrl+K / Cmd+K) for rapid field parcel lookup (`src/components/QuickSearch.jsx`).
+- Accessible focus trapping and keyboard navigation hook (`src/components/useDialogFocus.js`).
+- Dynamic workspace page context management hook (`src/components/useWorkspacePage.ts`).
 ---
 
 ### Getting Started
