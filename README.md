@@ -145,6 +145,12 @@ Developed for the **NASA Space Apps Challenge**, AgroMax bridges orbital satelli
 - End-to-end Landsat scene processing and canopy temperature analysis pipeline (`commercial/analyses/landsat.ts`).
 - Commercial runtime core router, HTTP request dispatchers, and health readiness probes (`commercial/core/`, `commercial/runtime.ts`).
 - Declarative asynchronous analysis and report generation workflows (`workflows/`).
+### Phase 6 / Step 25: Production Release Freeze & Final Deployment Suite
+- Complete unified web workspace frontend (`src/App.jsx`, `src/main.jsx`, `src/features/commercial/`, `src/features/overview/`, `src/features/history/`).
+- Full Canopy design tokens, typography, and responsive stylesheets (`src/styles/`).
+- End-to-end integration test harness with Playwright (`e2e/`, `playwright.config.ts`).
+- Production build automation, offline service worker, and web application manifest (`public/`, `scripts/`).
+- Architectural specifications, technical RFCs, and market research docs (`docs/`).
 ---
 
 ### Getting Started
