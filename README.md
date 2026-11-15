@@ -135,6 +135,11 @@ Developed for the **NASA Space Apps Challenge**, AgroMax bridges orbital satelli
 - Offline-first field record synchronization and telemetry cache (`commercial/records/`).
 - MRV (Measurement, Reporting & Verification) agronomic claims verification engine (`commercial/intelligence/`).
 - Interactive water-balance root-zone simulation tool and platform management panels (`src/features/platform/`).
+### Phase 5 / Step 23: Multi-Tenant Organizations, Usage Metering & Reporting
+- Multi-tenant enterprise team management, roles, and invitation systems (`commercial/organizations/`).
+- Production workspace snapshot state and telemetry engine (`commercial/production/`).
+- Provider quota metering and private signed file storage pipeline (`commercial/usage/`, `commercial/files/`).
+- Automated agronomic PDF report generation service with headless background workers (`commercial/reports/`).
 ---
 
 ### Getting Started
